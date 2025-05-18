@@ -42,8 +42,9 @@ def pick_image(folder_path):
     filename = random.choice(os.listdir(folder_path))
     return folder_path+"/"+filename
 
-def pick_and_change():
-    image_path = os.path.abspath("C:/MSI/MSI Center/New folder/DESKTOP")  # Replace with the image path
+def pick_and_change(folder_path):
+    print("PickPath: "+folder_path)
+    image_path = os.path.abspath(folder_path)  # Replace with the image path
     if change_wallpaper(pick_image(image_path)):
         print("Wallpaper changed successfully!")
     else:
