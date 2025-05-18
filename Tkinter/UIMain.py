@@ -12,8 +12,7 @@ def get_path():
     new_path = Path_entry.get()
     p = pathlib.PureWindowsPath(new_path)
     path = p.as_posix()
-    print("Path:", path)
-    Update_label['text'] = "Path Updated"
+    #print("Path:", path)
     return path
 
 def get_data():
@@ -25,11 +24,34 @@ def get_data():
 
 def add_path(new_path, arr):
     if os.path.isdir(path):
-        if new_path not in arr:
+        if new_path and new_path not in arr:
             arr.append(new_path)
             update_file(arr)
+            Path_listbox.insert(END, new_path)
+            Update_label['text'] = "Path Added"
     else:
         print("path not valid")
+
+def remove_path():
+    selected = Path_listbox.curselection()
+    if selected:
+        index = selected[0]
+        path_to_remove = Path_listbox.get(index)
+        Path_listbox.delete(index)
+        if path_to_remove in data:
+            data.remove(path_to_remove)
+            update_file(data)
+        Update_label['text'] = "Path Removed"
+
+def change_wallpaper():
+    selected = Path_listbox.curselection()
+    if selected:
+        index = selected[0]
+        selected_path = Path_listbox.get(index)
+        Main.pick_and_change(selected_path)
+        Update_label['text'] = "Wallpaper Changed"
+    else:
+        Update_label['text'] = "No Path Selected"
 
 def update_file(arr):
     with open("data.txt", "w") as f:
@@ -58,12 +80,14 @@ right_frame = Frame(main_frame)
 right_frame.pack(side=RIGHT, fill=BOTH, expand=True, padx=10, pady=10)
 
 Path_entry = ttk.Entry(right_frame)
-New_path_button = ttk.Button(right_frame, text="Set Path", command=lambda: add_path(get_path(), data))
-Change_button = ttk.Button(right_frame, text="Change Wallpaper", command=lambda: Main.pick_and_change(path))
+New_path_button = ttk.Button(right_frame, text="Add Path", command=lambda: add_path(get_path(), data))
+Change_button = ttk.Button(right_frame, text="Change Wallpaper", command=lambda: change_wallpaper())
+Remove_button = ttk.Button(right_frame, text="Remove Path", command=remove_path)
 Update_label = ttk.Label(right_frame, text="")
 
 Path_entry.pack(pady=10)
 New_path_button.pack(pady=10)
+Remove_button.pack(pady=10)
 Change_button.pack(pady=10)
 Update_label.pack(pady=10)
 
