@@ -1,5 +1,6 @@
 import os
 import ctypes
+import random
 
 def change_wallpaper(image_path):
     # Constants for setting the wallpaper
@@ -17,10 +18,13 @@ def change_wallpaper(image_path):
         print(f"Error changing wallpaper: {e}")
         return False
 
+def pick_image(folder_path):
+    filename = random.choice(os.listdir(folder_path))
+    return folder_path+"/"+filename
+
 if __name__ == "__main__":
-    # Provide the absolute path to the image file
-    image_path = os.path.abspath("C:/MSI/MSI Center/New folder/DESKTOP/1847_106.jpg")  # Replace with the image path
-    if change_wallpaper(image_path):
+    image_path = os.path.abspath("C:/MSI/MSI Center/New folder/DESKTOP")  # Replace with the image path
+    if change_wallpaper(pick_image(image_path)):
         print("Wallpaper changed successfully!")
     else:
         print("Failed to change wallpaper.")
