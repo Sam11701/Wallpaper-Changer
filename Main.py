@@ -1,6 +1,26 @@
 import os
 import ctypes
 import random
+from datetime import datetime, time, timedelta, date
+import time
+
+#ToDo
+"""def repeat(interval=1):
+    i = 0
+    minut_to_run =[]
+    minutes = 59
+    while minutes >= 0:
+       minut_to_run.append(minutes)
+       minutes -= interval
+
+    while i <= 1:
+       t = datetime.now()
+       my_time = t.strftime("%H:%M:%S.%f")
+
+       if t.second >= 50 and t.minute in minut_to_run:
+           print("my local time is", my_time)
+           time.sleep(55)
+           print("after sleep print time is", t)"""
 
 def change_wallpaper(image_path):
     # Constants for setting the wallpaper
@@ -22,7 +42,7 @@ def pick_image(folder_path):
     filename = random.choice(os.listdir(folder_path))
     return folder_path+"/"+filename
 
-if __name__ == "__main__":
+def pick_and_change():
     image_path = os.path.abspath("C:/MSI/MSI Center/New folder/DESKTOP")  # Replace with the image path
     if change_wallpaper(pick_image(image_path)):
         print("Wallpaper changed successfully!")
