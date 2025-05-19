@@ -15,11 +15,24 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, hotkey_actions, Upda
         keys_down = set()
         combo_recorded = [False]
 
+        def normalize_key(key):
+            replacements = {
+                'add': 'plus',
+                'left shift': 'shift',
+                'right shift': 'shift',
+                'left ctrl': 'ctrl',
+                'right ctrl': 'ctrl',
+                'left alt': 'alt',
+                'right alt': 'alt',
+                'plus': '+',
+            }
+            return replacements.get(key, key)
+
         def on_key_event(event):
             if event.event_type == 'down':
-                keys_down.add(event.name)
+                keys_down.add(normalize_key(event.name))
             elif event.event_type == 'up':
-                keys_down.discard(event.name)
+                keys_down.discard(normalize_key(event.name))
                 if not keys_down and not combo_recorded[0]:
                     # All keys released: finalize
                     ordered = sorted(set(keys_pressed), key=lambda k: (k not in ['ctrl', 'shift', 'alt'], k))
@@ -33,7 +46,7 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, hotkey_actions, Upda
         keys_pressed = set()
 
         def record_keys(e):
-            keys_pressed.add(e.name)
+            keys_pressed.add(normalize_key(e.name))
 
         keyboard.unhook_all()
         keyboard.hook(record_keys)
@@ -77,6 +90,12 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, hotkey_actions, Upda
     for combo_str in hotkey_bindings["stop"]:
         structure_path = combo_str.replace("+", " + ")
         hotkey_listbox.insert(END, f"[STOP] → {structure_path}")
+    for combo_str in hotkey_bindings["change"]:
+        structure_path = combo_str.replace("+", " + ")
+        hotkey_listbox.insert(END, f"[CHANGE] → {structure_path}")
+    for combo_str in hotkey_bindings["show"]:
+        structure_path = combo_str.replace("+", " + ")
+        hotkey_listbox.insert(END, f"[SHOW] → {structure_path}")
 
     def save_hotkey():
         combo_str = hotkey_entry.get().lower().strip()
@@ -140,26 +159,50 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, hotkey_actions, Upda
             return
 
         entry = hotkey_listbox.get(selection[0])
-        combo_str = entry.split("→")[0].strip().replace("[STOP] ", "")
+
+        try:
+            label, combo_str = entry.split("→")
+            combo_str = combo_str.strip().replace(" + ", "+")  # normalize
+            label = label.strip().strip("[]")
+        except ValueError:
+            Update_label['text'] = "Invalid format in hotkey list"
+            return
 
         removed = False
-        if combo_str in hotkey_bindings["start"]:
-            del hotkey_bindings["start"][combo_str]
-            removed = True
-        elif combo_str in hotkey_bindings["stop"]:
-            hotkey_bindings["stop"].remove(combo_str)
-            removed = True
+
+        # Handle [STOP], [SHOW], [CHANGE], [START]
+        if label.upper() == "STOP":
+            if combo_str in hotkey_bindings["stop"]:
+                hotkey_bindings["stop"].remove(combo_str)
+                removed = True
+
+        elif label.upper() == "CHANGE":
+            if combo_str in hotkey_bindings["change"]:
+                hotkey_bindings["change"].remove(combo_str)
+                removed = True
+
+        elif label.upper() == "SHOW":
+            if combo_str in hotkey_bindings["show"]:
+                hotkey_bindings["show"].remove(combo_str)
+                removed = True
+
+        else:  # It's a START hotkey (label is folder name)
+            for key, path in list(hotkey_bindings["start"].items()):
+                if key == combo_str and os.path.basename(path.rstrip("/\\")) == label:
+                    del hotkey_bindings["start"][key]
+                    removed = True
+                    break
 
         if removed:
             try:
                 keyboard.remove_hotkey(combo_str)
             except:
-                pass  # ignore if not bound
+                pass
             hotkey_listbox.delete(selection[0])
             save_hotkey_bindings()
             Update_label['text'] = f"Removed hotkey: {combo_str}"
         else:
-            Update_label['text'] = f"Hotkey {combo_str} not found"
+            Update_label['text'] = f"Hotkey [{label}] not found"
 
     binding_frame = Frame(hotkey_window)
     bind_button = ttk.Button(binding_frame, text="Bind Hotkey", command=save_hotkey)

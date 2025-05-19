@@ -36,6 +36,7 @@ def load_hotkey_bindings():
             for key in default:
                 if key not in data:
                     data[key] = default[key]
+            print(data)
             return data
     return default
 
