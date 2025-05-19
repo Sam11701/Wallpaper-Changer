@@ -19,14 +19,15 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, hotkey_actions, Upda
 
         def normalize_key(key):
             replacements = {
-                'add': 'plus',
+                'add': 'equal',
+                'plus': 'equal',
+                '=': 'equal',
                 'left shift': 'shift',
                 'right shift': 'shift',
                 'left ctrl': 'ctrl',
                 'right ctrl': 'ctrl',
                 'left alt': 'alt',
                 'right alt': 'alt',
-                'plus': '+',
             }
             return replacements.get(key, key)
 
@@ -41,6 +42,7 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, hotkey_actions, Upda
                 if not keys_down and not combo_recorded[0]:
                     ordered = sorted(set(keys_pressed), key=lambda k: (k not in ['ctrl', 'shift', 'alt'], k))
                     combo = '+'.join(ordered)
+                    combo = combo.replace("++", "+=")
                     hotkey_entry.delete(0, END)
                     hotkey_entry.insert(0, combo)
                     Update_label['text'] = f"Hotkey detected: {combo}"
