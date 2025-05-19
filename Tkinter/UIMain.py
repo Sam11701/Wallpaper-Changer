@@ -15,7 +15,7 @@ import Hotkey
 global path
 interval_thread = None
 interval_active = False
-hotkey_bindings = {"start": {}, "stop": []}
+hotkey_bindings = {"start": {}, "stop": [], "change": [], "show": []}
 HOTKEY_FILE = "hotkeys.json"
 tray_icon = None
 tray_icon_running = False
@@ -29,18 +29,15 @@ def get_path():
     return path
 
 def load_hotkey_bindings():
-    default_bindings = {"start": {}, "stop": []}
+    default = {"start": {}, "stop": [], "change": [], "show": []}
     if os.path.exists(HOTKEY_FILE):
-        try:
-            with open(HOTKEY_FILE, "r") as f:
-                data = json.load(f)
-                data.setdefault("start", {})
-                data.setdefault("stop", [])
-                return data
-        except Exception as e:
-            print(f"Error loading hotkeys.json: {e}")
-            return default_bindings
-    return default_bindings
+        with open(HOTKEY_FILE, "r") as f:
+            data = json.load(f)
+            for key in default:
+                if key not in data:
+                    data[key] = default[key]
+            return data
+    return default
 
 def save_hotkey_bindings():
     with open(HOTKEY_FILE, "w") as f:
@@ -161,6 +158,20 @@ def stop_auto_change_hotkey():
     print("Auto-change stopped via hotkey")
     Update_label['text'] = "Auto-change stopped via hotkey"
 
+def change_wallpaper_hotkey():
+    global current_auto_path
+    if current_auto_path and os.path.isdir(current_auto_path):
+        Main.pick_and_change(current_auto_path)
+        Update_label['text'] = "Wallpaper changed via hotkey"
+    else:
+        Update_label['text'] = "No valid path for wallpaper change"
+
+def show_ui_hotkey():
+    global already_minimized
+    already_minimized = False
+    root.after(0, root.deiconify)
+    Update_label['text'] = "UI restored via hotkey"
+
 def create_image():
     # Simple blank image for icon; replace with a real icon if you have one
     image = PILImage.new('RGB', (64, 64), color='gray')
@@ -234,6 +245,12 @@ root.title("Wallpaper Changer")
 root.geometry("600x500")
 root.protocol("WM_DELETE_WINDOW", minimize_to_tray)
 root.bind("<Visibility>", handle_state_change)
+hotkey_actions = {
+    "start": switch_path_by_hotkey,
+    "stop": stop_auto_change_hotkey,
+    "change": change_wallpaper_hotkey,
+    "show": show_ui_hotkey,
+}
 
 main_frame = Frame(root)
 main_frame.pack(fill=BOTH, expand=True)
@@ -275,8 +292,7 @@ Hotkey_manager_button = ttk.Button(
         root,
         Path_listbox,
         hotkey_bindings,
-        switch_path_by_hotkey,
-        stop_auto_change_hotkey,
+        hotkey_actions,
         Update_label,
         save_hotkey_bindings
     )
@@ -315,8 +331,14 @@ for combo_str, path in hotkey_bindings["start"].items():
     keyboard.add_hotkey(combo_str, lambda k=combo_str: switch_path_by_hotkey(k))
 
 for combo_str in hotkey_bindings["stop"]:
-    print(f"Binding STOP hotkey: {combo_str}")
     keyboard.add_hotkey(combo_str, stop_auto_change_hotkey)
+
+for combo_str in hotkey_bindings["change"]:
+    keyboard.add_hotkey(combo_str, change_wallpaper_hotkey)
+
+for combo_str in hotkey_bindings["show"]:
+    keyboard.add_hotkey(combo_str, show_ui_hotkey)
+
 for item in data:
     Path_listbox.insert(END, item)
 

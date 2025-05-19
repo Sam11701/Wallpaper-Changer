@@ -5,7 +5,7 @@ from tkinter import *
 from tkinter import ttk
 import keyboard
 
-def open_hotkey_window(root, Path_listbox, hotkey_bindings, switch_path_by_hotkey, stop_auto_change_hotkey, Update_label, save_hotkey_bindings):
+def open_hotkey_window(root, Path_listbox, hotkey_bindings, hotkey_actions, Update_label, save_hotkey_bindings):
     paths = [Path_listbox.get(i) for i in range(Path_listbox.size())]
 
     def start_hotkey_record():
@@ -49,6 +49,13 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, switch_path_by_hotke
     path_combo.pack()
     path_combo.set(paths[0] if paths else "")
 
+    Label(hotkey_window, text="Select Action:").pack(pady=(10, 2))
+
+    action_combo = ttk.Combobox(hotkey_window, state="readonly", width=40)
+    action_combo['values'] = ["Start Auto-Change (Path)", "Stop Auto-Change", "Change Wallpaper", "Show UI"]
+    action_combo.current(0)
+    action_combo.pack()
+
     Label(hotkey_window, text="Enter hotkey combo (e.g., Ctrl+Shift+1):").pack(pady=10)
     input_frame = Frame(hotkey_window)
     hotkey_entry = ttk.Entry(input_frame)
@@ -73,26 +80,58 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, switch_path_by_hotke
 
     def save_hotkey():
         combo_str = hotkey_entry.get().lower().strip()
-        if not combo_str:
-            Update_label['text'] = "Enter a hotkey combo"
-            return
-        path = path_combo.get()
-        if not path:
-            Update_label['text'] = "No path selected"
-            return
-        hotkey_bindings["start"][combo_str] = path
+        action = action_combo.get()
+        path = path_combo.get() if path_combo.get() else None
 
+        if not combo_str:
+            Update_label['text'] = "Press a hotkey combo"
+            return
+
+        # Unbind if already used in any category
+        for section in ["start", "stop", "change", "show"]:
+            if combo_str in hotkey_bindings.get(section, {} if section == "start" else []):
+                try:
+                    keyboard.remove_hotkey(combo_str)
+                except:
+                    pass
+                if section == "start":
+                    del hotkey_bindings["start"][combo_str]
+                else:
+                    hotkey_bindings[section].remove(combo_str)
+                for i in range(hotkey_listbox.size()):
+                    if combo_str in hotkey_listbox.get(i):
+                        hotkey_listbox.delete(i)
+                        break
+
+        # Handle action assignment
         try:
-            keyboard.add_hotkey(combo_str, lambda: switch_path_by_hotkey(combo_str))
+            if action == "Start Auto-Change (Path)":
+                if not path:
+                    Update_label['text'] = "Path required for start hotkey"
+                    return
+                keyboard.add_hotkey(combo_str, lambda k=combo_str: hotkey_actions["start"](k))
+                hotkey_bindings["start"][combo_str] = path
+                hotkey_listbox.insert(END, f"[START] {combo_str} → {os.path.basename(path)}")
+
+            elif action == "Stop Auto-Change":
+                keyboard.add_hotkey(combo_str, hotkey_actions["stop"])
+                hotkey_bindings["stop"] = [combo_str]  # Enforce single stop key
+                hotkey_listbox.insert(END, f"[STOP] {combo_str}")
+
+            elif action == "Change Wallpaper":
+                keyboard.add_hotkey(combo_str, hotkey_actions["change"])
+                hotkey_bindings["change"] = [combo_str]
+                hotkey_listbox.insert(END, f"[CHANGE] {combo_str}")
+
+            elif action == "Show UI":
+                keyboard.add_hotkey(combo_str, hotkey_actions["show"])
+                hotkey_bindings["show"] = [combo_str]
+                hotkey_listbox.insert(END, f"[SHOW] {combo_str}")
+
             save_hotkey_bindings()
-            Update_label['text'] = f"Global hotkey {combo_str} bound to selected path"
+            Update_label['text'] = f"{action} bound to {combo_str}"
         except Exception as e:
             Update_label['text'] = f"Failed to bind: {e}"
-            return
-
-        folder_name = os.path.basename(path.rstrip("/\\"))
-        hotkey_listbox.insert(END, f"{combo_str} → {folder_name}")
-        hotkey_window.destroy()
 
     def remove_selected_hotkey():
         selection = hotkey_listbox.curselection()
@@ -122,41 +161,9 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, switch_path_by_hotke
         else:
             Update_label['text'] = f"Hotkey {combo_str} not found"
 
-    def save_stop_hotkey():
-        combo_str = hotkey_entry.get().lower().strip()
-        if not combo_str:
-            Update_label['text'] = "Enter a hotkey combo"
-            return
-
-        # Remove existing stop hotkey (if any)
-        if hotkey_bindings["stop"]:
-            old_combo = hotkey_bindings["stop"][0]
-            try:
-                keyboard.remove_hotkey(old_combo)
-            except:
-                pass
-            hotkey_bindings["stop"] = []
-
-            # Also remove it from the listbox
-            for i in range(hotkey_listbox.size()):
-                if old_combo in hotkey_listbox.get(i):
-                    hotkey_listbox.delete(i)
-                    break
-
-        # Add new stop hotkey
-        try:
-            keyboard.add_hotkey(combo_str, stop_auto_change_hotkey)
-            hotkey_bindings["stop"].append(combo_str)
-            save_hotkey_bindings()
-            hotkey_listbox.insert(END, f"[STOP] {combo_str}")
-            Update_label['text'] = f"Stop hotkey {combo_str} bound"
-        except Exception as e:
-            Update_label['text'] = f"Failed to bind: {e}"
-
     binding_frame = Frame(hotkey_window)
     bind_button = ttk.Button(binding_frame, text="Bind Hotkey", command=save_hotkey)
     remove_button = ttk.Button(binding_frame, text="Remove Hotkey", command=remove_selected_hotkey)
     bind_button.pack(side=LEFT)
     remove_button.pack(side=RIGHT)
     binding_frame.pack(pady=5)
-    ttk.Button(binding_frame, text="Bind as Stop Hotkey", command=save_stop_hotkey).pack(pady=5)
