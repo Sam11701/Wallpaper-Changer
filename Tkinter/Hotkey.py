@@ -1,4 +1,6 @@
 import os
+import threading
+import time
 from tkinter import *
 from tkinter import ttk
 import keyboard
@@ -6,9 +8,40 @@ import keyboard
 def open_hotkey_window(root, Path_listbox, hotkey_bindings, switch_path_by_hotkey, stop_auto_change_hotkey, Update_label, save_hotkey_bindings):
     paths = [Path_listbox.get(i) for i in range(Path_listbox.size())]
 
+    def start_hotkey_record():
+        Update_label['text'] = "Recording... Press your key combination"
+        hotkey_entry.delete(0, END)
+
+        keys_down = set()
+        combo_recorded = [False]
+
+        def on_key_event(event):
+            if event.event_type == 'down':
+                keys_down.add(event.name)
+            elif event.event_type == 'up':
+                keys_down.discard(event.name)
+                if not keys_down and not combo_recorded[0]:
+                    # All keys released: finalize
+                    ordered = sorted(set(keys_pressed), key=lambda k: (k not in ['ctrl', 'shift', 'alt'], k))
+                    combo = '+'.join(ordered)
+                    hotkey_entry.delete(0, END)
+                    hotkey_entry.insert(0, combo)
+                    Update_label['text'] = f"Hotkey detected: {combo}"
+                    combo_recorded[0] = True
+                    keyboard.unhook_all()
+
+        keys_pressed = set()
+
+        def record_keys(e):
+            keys_pressed.add(e.name)
+
+        keyboard.unhook_all()
+        keyboard.hook(record_keys)
+        keyboard.hook(on_key_event)
+
     hotkey_window = Toplevel(root)
     hotkey_window.title("Hotkey Manager")
-    hotkey_window.geometry("400x400")
+    hotkey_window.geometry("600x500")
 
     Label(hotkey_window, text="Select Path:").pack(pady=5)
 
@@ -16,9 +49,14 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, switch_path_by_hotke
     path_combo.pack()
     path_combo.set(paths[0] if paths else "")
 
-    Label(hotkey_window, text="Enter hotkey combo (e.g., ctrl+shift+1):").pack(pady=10)
-    hotkey_entry = ttk.Entry(hotkey_window)
-    hotkey_entry.pack()
+    Label(hotkey_window, text="Enter hotkey combo (e.g., Ctrl+Shift+1):").pack(pady=10)
+    input_frame = Frame(hotkey_window)
+    hotkey_entry = ttk.Entry(input_frame)
+    hotkey_entry.pack(side=LEFT)
+
+    record_button = ttk.Button(input_frame, text="Record Hotkey", command=start_hotkey_record)
+    record_button.pack(side=LEFT)
+    input_frame.pack(pady=5)
 
     # Display current hotkeys
     Label(hotkey_window, text="Assigned Hotkeys:").pack(pady=(15, 0))
@@ -90,10 +128,22 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, switch_path_by_hotke
             Update_label['text'] = "Enter a hotkey combo"
             return
 
-        if combo_str in hotkey_bindings["stop"]:
-            Update_label['text'] = f"{combo_str} already bound as stop hotkey"
-            return
+        # Remove existing stop hotkey (if any)
+        if hotkey_bindings["stop"]:
+            old_combo = hotkey_bindings["stop"][0]
+            try:
+                keyboard.remove_hotkey(old_combo)
+            except:
+                pass
+            hotkey_bindings["stop"] = []
 
+            # Also remove it from the listbox
+            for i in range(hotkey_listbox.size()):
+                if old_combo in hotkey_listbox.get(i):
+                    hotkey_listbox.delete(i)
+                    break
+
+        # Add new stop hotkey
         try:
             keyboard.add_hotkey(combo_str, stop_auto_change_hotkey)
             hotkey_bindings["stop"].append(combo_str)
@@ -103,8 +153,10 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, switch_path_by_hotke
         except Exception as e:
             Update_label['text'] = f"Failed to bind: {e}"
 
-    bind_button = ttk.Button(hotkey_window, text="Bind Hotkey", command=save_hotkey)
-    remove_button = ttk.Button(hotkey_window, text="Remove Hotkey", command=remove_selected_hotkey)
-    bind_button.pack(pady=5)
-    remove_button.pack(pady=5)
-    ttk.Button(hotkey_window, text="Bind as Stop Hotkey", command=save_stop_hotkey).pack(pady=5)
+    binding_frame = Frame(hotkey_window)
+    bind_button = ttk.Button(binding_frame, text="Bind Hotkey", command=save_hotkey)
+    remove_button = ttk.Button(binding_frame, text="Remove Hotkey", command=remove_selected_hotkey)
+    bind_button.pack(side=LEFT)
+    remove_button.pack(side=RIGHT)
+    binding_frame.pack(pady=5)
+    ttk.Button(binding_frame, text="Bind as Stop Hotkey", command=save_stop_hotkey).pack(pady=5)
