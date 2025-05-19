@@ -14,7 +14,6 @@ def get_path():
     new_path = Path_entry.get()
     p = pathlib.PureWindowsPath(new_path)
     path = p.as_posix()
-    #print("Path:", path)
     return path
 
 def start_interval_change():
@@ -94,7 +93,7 @@ def update_file(arr):
 # GUI Setup
 root = Tk()
 root.title("Wallpaper Changer")
-root.geometry("500x400")
+root.geometry("600x400")
 
 main_frame = Frame(root)
 main_frame.pack(fill=BOTH, expand=True)
@@ -102,7 +101,7 @@ main_frame.pack(fill=BOTH, expand=True)
 left_frame = Frame(main_frame)
 left_frame.pack(side=LEFT, fill=Y, padx=10, pady=10)
 
-Path_listbox = Listbox(left_frame, height=20, width=30)
+Path_listbox = Listbox(left_frame, height=20, width=50)
 Path_listbox.pack(side=LEFT, fill=Y)
 
 scrollbar = Scrollbar(left_frame, orient=VERTICAL)
