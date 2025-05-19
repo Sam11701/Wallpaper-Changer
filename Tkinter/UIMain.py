@@ -2,6 +2,7 @@ import Main
 import os
 import pathlib
 import pystray
+import sys
 from PIL import Image as PILImage, ImageDraw
 import threading
 import keyboard
@@ -13,7 +14,7 @@ import Hotkey
 global path
 interval_thread = None
 interval_active = False
-hotkey_bindings = {}
+hotkey_bindings = {"start": {}, "stop": []}
 HOTKEY_FILE = "hotkeys.json"
 tray_icon = None
 tray_icon_running = False
@@ -27,10 +28,18 @@ def get_path():
     return path
 
 def load_hotkey_bindings():
+    default_bindings = {"start": {}, "stop": []}
     if os.path.exists(HOTKEY_FILE):
-        with open(HOTKEY_FILE, "r") as f:
-            return json.load(f)
-    return {}
+        try:
+            with open(HOTKEY_FILE, "r") as f:
+                data = json.load(f)
+                data.setdefault("start", {})
+                data.setdefault("stop", [])
+                return data
+        except Exception as e:
+            print(f"Error loading hotkeys.json: {e}")
+            return default_bindings
+    return default_bindings
 
 def save_hotkey_bindings():
     with open(HOTKEY_FILE, "w") as f:
@@ -131,12 +140,18 @@ def change_wallpaper():
         Update_label['text'] = "No Path Selected"
 
 def switch_path_by_hotkey(key_combo):
-    path = hotkey_bindings.get(key_combo)
+    path = hotkey_bindings["start"].get(key_combo)
     print(f"Hotkey Triggered: {key_combo} → {path}")
     if path and os.path.isdir(path):
         start_auto_change_for_path(path)
     else:
         Update_label['text'] = f"No valid path assigned to {key_combo}"
+
+def stop_auto_change_hotkey():
+    global interval_active
+    interval_active = False
+    print("Auto-change stopped via hotkey")
+    Update_label['text'] = "Auto-change stopped via hotkey"
 
 def create_image():
     # Simple blank image for icon; replace with a real icon if you have one
@@ -159,7 +174,16 @@ def on_tray_exit(icon, item):
     tray_icon = None
     tray_icon_running = False
     already_minimized = False
-    root.quit()
+
+    root.after(0, root.destroy)
+    sys.exit(0)
+
+def exit():
+    tray_icon = None
+    tray_icon_running = False
+    already_minimized = False
+    root.after(0, root.destroy)
+    sys.exit(0)
 
 def minimize_to_tray():
     global tray_icon, tray_icon_running
@@ -199,7 +223,7 @@ def update_file(arr):
 # GUI Setup
 root = Tk()
 root.title("Wallpaper Changer")
-root.geometry("600x400")
+root.geometry("600x500")
 root.protocol("WM_DELETE_WINDOW", minimize_to_tray)
 root.bind("<Visibility>", handle_state_change)
 
@@ -224,6 +248,7 @@ Path_entry = ttk.Entry(right_frame)
 New_path_button = ttk.Button(right_frame, text="Add Path", command=lambda: add_path(get_path(), data))
 Change_button = ttk.Button(right_frame, text="Change Wallpaper", command=lambda: change_wallpaper())
 Remove_button = ttk.Button(right_frame, text="Remove Path", command=remove_path)
+Close_button = ttk.Button(right_frame, text="Exit", command=exit)
 Hotkey_manager_button = ttk.Button(
     right_frame,
     text="Manage Hotkeys",
@@ -232,6 +257,7 @@ Hotkey_manager_button = ttk.Button(
         Path_listbox,
         hotkey_bindings,
         switch_path_by_hotkey,
+        stop_auto_change_hotkey,
         Update_label,
         save_hotkey_bindings
     )
@@ -263,12 +289,18 @@ time_frame.pack(pady=10)
 Start_interval_button.pack(pady=5)
 Stop_interval_button.pack(pady=5)
 Hotkey_manager_button.pack(pady=5)
+Close_button.pack(pady=5)
 Update_label.pack(pady=10)
 
 data = get_data()
 hotkey_bindings = load_hotkey_bindings()
-for combo_str, path in hotkey_bindings.items():
+for combo_str, path in hotkey_bindings["start"].items():
+    print(f"Binding START hotkey: {combo_str} → {path}")
     keyboard.add_hotkey(combo_str, lambda k=combo_str: switch_path_by_hotkey(k))
+
+for combo_str in hotkey_bindings["stop"]:
+    print(f"Binding STOP hotkey: {combo_str}")
+    keyboard.add_hotkey(combo_str, stop_auto_change_hotkey)
 for item in data:
     Path_listbox.insert(END, item)
 
