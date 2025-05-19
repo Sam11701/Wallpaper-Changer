@@ -9,6 +9,7 @@ import keyboard
 import json
 from tkinter import *
 from tkinter import ttk
+from tkinter import filedialog
 import Hotkey
 
 global path
@@ -107,6 +108,13 @@ def get_data():
             return f.read().splitlines()
     except FileNotFoundError:
         return []
+
+def browse_folder(arr):
+    selected_folder = filedialog.askdirectory()
+    if selected_folder:
+        Path_entry.delete(0, END)
+        add_path(selected_folder, arr)
+        Update_label['text'] = "Folder selected"
 
 def add_path(new_path, arr):
     if os.path.isdir(path):
@@ -244,7 +252,8 @@ Path_listbox.config(yscrollcommand=scrollbar.set)
 right_frame = Frame(main_frame)
 right_frame.pack(side=RIGHT, fill=BOTH, expand=True, padx=10, pady=10)
 
-Path_entry = ttk.Entry(right_frame)
+Path_entry = ttk.Entry(right_frame, width=40)
+Browse_button = ttk.Button(right_frame, text="Browse", command=lambda: browse_folder(data))
 New_path_button = ttk.Button(right_frame, text="Add Path", command=lambda: add_path(get_path(), data))
 Change_button = ttk.Button(right_frame, text="Change Wallpaper", command=lambda: change_wallpaper())
 Remove_button = ttk.Button(right_frame, text="Remove Path", command=remove_path)
@@ -282,6 +291,7 @@ Stop_interval_button = ttk.Button(right_frame, text="Stop Auto-Change", command=
 
 
 Path_entry.pack(pady=10)
+Browse_button.pack(pady=5)
 New_path_button.pack(pady=10)
 Remove_button.pack(pady=10)
 Change_button.pack(pady=10)
