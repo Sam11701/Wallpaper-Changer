@@ -1,11 +1,13 @@
 import Main
 import os
 import pathlib
+import threading
 from tkinter import *
 from tkinter import ttk
 
 global path
-path = "C:/"
+interval_thread = None
+interval_active = False
 
 def get_path():
     global path
@@ -14,6 +16,34 @@ def get_path():
     path = p.as_posix()
     #print("Path:", path)
     return path
+
+def start_interval_change():
+    global interval_thread, interval_active
+    selected = Path_listbox.curselection()
+    if not selected:
+        Update_label['text'] = "No Path Selected"
+        return
+
+    selected_path = Path_listbox.get(selected[0])
+    if not os.path.isdir(selected_path):
+        Update_label['text'] = "Invalid Directory"
+        return
+
+    interval_active = True
+    interval_seconds = int(interval_entry.get()) if interval_entry.get().isdigit() else 60
+    Update_label['text'] = f"Auto-changing every {interval_seconds}s"
+
+    def loop():
+        if interval_active:
+            Main.pick_and_change(selected_path)
+            threading.Timer(interval_seconds, loop).start()
+
+    loop()
+
+def stop_interval_change():
+    global interval_active
+    interval_active = False
+    Update_label['text'] = "Auto-change stopped"
 
 def get_data():
     try:
@@ -84,11 +114,20 @@ New_path_button = ttk.Button(right_frame, text="Add Path", command=lambda: add_p
 Change_button = ttk.Button(right_frame, text="Change Wallpaper", command=lambda: change_wallpaper())
 Remove_button = ttk.Button(right_frame, text="Remove Path", command=remove_path)
 Update_label = ttk.Label(right_frame, text="")
+interval_entry = ttk.Entry(right_frame)
+interval_entry.insert(0, "60")
+Start_interval_button = ttk.Button(right_frame, text="Start Auto-Change", command=start_interval_change)
+Stop_interval_button = ttk.Button(right_frame, text="Stop Auto-Change", command=stop_interval_change)
+
+
 
 Path_entry.pack(pady=10)
 New_path_button.pack(pady=10)
 Remove_button.pack(pady=10)
 Change_button.pack(pady=10)
+interval_entry.pack(pady=10)
+Start_interval_button.pack(pady=5)
+Stop_interval_button.pack(pady=5)
 Update_label.pack(pady=10)
 
 data = get_data()
