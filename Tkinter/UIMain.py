@@ -1,6 +1,8 @@
 import Main
 import os
 import pathlib
+import pystray
+from PIL import Image as PILImage, ImageDraw
 import threading
 import keyboard
 import json
@@ -13,6 +15,9 @@ interval_thread = None
 interval_active = False
 hotkey_bindings = {}
 HOTKEY_FILE = "hotkeys.json"
+tray_icon = None
+tray_icon_running = False
+already_minimized = False
 
 def get_path():
     global path
@@ -133,6 +138,60 @@ def switch_path_by_hotkey(key_combo):
     else:
         Update_label['text'] = f"No valid path assigned to {key_combo}"
 
+def create_image():
+    # Simple blank image for icon; replace with a real icon if you have one
+    image = PILImage.new('RGB', (64, 64), color='gray')
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((16, 16, 48, 48), fill='white')
+    return image
+
+def on_tray_restore(icon, item):
+    global tray_icon, tray_icon_running, already_minimized
+    icon.stop()
+    tray_icon = None
+    tray_icon_running = False
+    already_minimized = False
+    root.after(0, root.deiconify)
+
+def on_tray_exit(icon, item):
+    global tray_icon, tray_icon_running, already_minimized
+    icon.stop()
+    tray_icon = None
+    tray_icon_running = False
+    already_minimized = False
+    root.quit()
+
+def minimize_to_tray():
+    global tray_icon, tray_icon_running
+
+    if tray_icon_running:
+        return  # Tray icon already active
+
+    def run_tray():
+        global tray_icon_running
+        tray_icon_running = True
+        tray_icon.run()
+        tray_icon_running = False  # Reset when .run() exits
+
+    root.withdraw()  # Hide the window
+    image = create_image()
+    menu = pystray.Menu(
+        pystray.MenuItem("Restore", on_tray_restore),
+        pystray.MenuItem("Exit", on_tray_exit)
+    )
+    tray_icon = pystray.Icon("WallpaperChanger", image, "Wallpaper Changer", menu)
+
+    threading.Thread(target=run_tray, daemon=True).start()
+
+def on_window_iconify(event):
+    minimize_to_tray()
+
+def handle_state_change(event):
+    global already_minimized
+    if root.state() == 'iconic' and not already_minimized:
+        already_minimized = True
+        minimize_to_tray()
+
 def update_file(arr):
     with open("data.txt", "w") as f:
         f.writelines(line + '\n' for line in arr)
@@ -141,7 +200,8 @@ def update_file(arr):
 root = Tk()
 root.title("Wallpaper Changer")
 root.geometry("600x400")
-root.bind("<Control-Shift-Key-1>", lambda e: print("Triggered 1"))
+root.protocol("WM_DELETE_WINDOW", minimize_to_tray)
+root.bind("<Visibility>", handle_state_change)
 
 main_frame = Frame(root)
 main_frame.pack(fill=BOTH, expand=True)
