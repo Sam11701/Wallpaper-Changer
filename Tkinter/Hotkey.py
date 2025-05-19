@@ -27,9 +27,11 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, switch_path_by_hotke
 
     for combo_str, path in hotkey_bindings["start"].items():
         folder_name = os.path.basename(path.rstrip("/\\"))
-        hotkey_listbox.insert(END, f"{combo_str} → {folder_name}")
+        structure_path = combo_str.replace("+", " + ")
+        hotkey_listbox.insert(END, f"[{folder_name}] → {structure_path}")
     for combo_str in hotkey_bindings["stop"]:
-        hotkey_listbox.insert(END, f"[STOP] {combo_str}")
+        structure_path = combo_str.replace("+", " + ")
+        hotkey_listbox.insert(END, f"[STOP] → {structure_path}")
 
     def save_hotkey():
         combo_str = hotkey_entry.get().lower().strip()
