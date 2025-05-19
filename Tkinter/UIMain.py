@@ -30,7 +30,11 @@ def start_interval_change():
         return
 
     interval_active = True
-    interval_seconds = int(interval_entry.get()) if interval_entry.get().isdigit() else 60
+    min_val = int(min_entry.get()) if min_entry.get().isdigit() else 0
+    sec_val = int(sec_entry.get()) if sec_entry.get().isdigit() else 0
+    interval_seconds = (min_val * 60) + sec_val
+    if interval_seconds == 0:
+        interval_seconds = 60  # fallback to 60s
     Update_label['text'] = f"Auto-changing every {interval_seconds}s"
 
     def loop():
@@ -90,7 +94,7 @@ def update_file(arr):
 # GUI Setup
 root = Tk()
 root.title("Wallpaper Changer")
-root.geometry("400x400")
+root.geometry("500x400")
 
 main_frame = Frame(root)
 main_frame.pack(fill=BOTH, expand=True)
@@ -114,8 +118,19 @@ New_path_button = ttk.Button(right_frame, text="Add Path", command=lambda: add_p
 Change_button = ttk.Button(right_frame, text="Change Wallpaper", command=lambda: change_wallpaper())
 Remove_button = ttk.Button(right_frame, text="Remove Path", command=remove_path)
 Update_label = ttk.Label(right_frame, text="")
-interval_entry = ttk.Entry(right_frame)
-interval_entry.insert(0, "60")
+
+time_frame = Frame(right_frame)
+min_label = Label(time_frame, text="Minutes:")
+min_label.pack(side=LEFT)
+min_entry = ttk.Entry(time_frame, width=5)
+min_entry.insert(0, "0")
+min_entry.pack(side=LEFT, padx=(5, 15))
+sec_label = Label(time_frame, text="Seconds:")
+sec_label.pack(side=LEFT)
+
+sec_entry = ttk.Entry(time_frame, width=5)
+sec_entry.insert(0, "60")
+sec_entry.pack(side=LEFT, padx=5)
 Start_interval_button = ttk.Button(right_frame, text="Start Auto-Change", command=start_interval_change)
 Stop_interval_button = ttk.Button(right_frame, text="Stop Auto-Change", command=stop_interval_change)
 
@@ -125,7 +140,7 @@ Path_entry.pack(pady=10)
 New_path_button.pack(pady=10)
 Remove_button.pack(pady=10)
 Change_button.pack(pady=10)
-interval_entry.pack(pady=10)
+time_frame.pack(pady=10)
 Start_interval_button.pack(pady=5)
 Stop_interval_button.pack(pady=5)
 Update_label.pack(pady=10)
