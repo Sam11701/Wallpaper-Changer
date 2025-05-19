@@ -17,6 +17,7 @@ interval_thread = None
 interval_active = False
 hotkey_bindings = {"start": {}, "stop": [], "change": [], "show": []}
 HOTKEY_FILE = "hotkeys.json"
+current_auto_path = None
 tray_icon = None
 tray_icon_running = False
 already_minimized = False
@@ -146,10 +147,12 @@ def change_wallpaper():
         Update_label['text'] = "No Path Selected"
 
 def switch_path_by_hotkey(key_combo):
+    global current_auto_path
     path = hotkey_bindings["start"].get(key_combo)
-    print(f"Hotkey Triggered: {key_combo} → {path}")
     if path and os.path.isdir(path):
+        current_auto_path = path
         start_auto_change_for_path(path)
+        Update_label['text'] = f"Started auto-change from hotkey: {key_combo}"
     else:
         Update_label['text'] = f"No valid path assigned to {key_combo}"
 

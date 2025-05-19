@@ -14,6 +14,8 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, hotkey_actions, Upda
 
         keys_down = set()
         combo_recorded = [False]
+        keys_pressed = set()
+        record_hooks = []
 
         def normalize_key(key):
             replacements = {
@@ -28,29 +30,26 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, hotkey_actions, Upda
             }
             return replacements.get(key, key)
 
+        def record_keys(e):
+            keys_pressed.add(normalize_key(e.name))
+
         def on_key_event(event):
             if event.event_type == 'down':
                 keys_down.add(normalize_key(event.name))
             elif event.event_type == 'up':
                 keys_down.discard(normalize_key(event.name))
                 if not keys_down and not combo_recorded[0]:
-                    # All keys released: finalize
                     ordered = sorted(set(keys_pressed), key=lambda k: (k not in ['ctrl', 'shift', 'alt'], k))
                     combo = '+'.join(ordered)
                     hotkey_entry.delete(0, END)
                     hotkey_entry.insert(0, combo)
                     Update_label['text'] = f"Hotkey detected: {combo}"
                     combo_recorded[0] = True
-                    keyboard.unhook_all()
+                    for hook in record_hooks:
+                        keyboard.unhook(hook)
 
-        keys_pressed = set()
-
-        def record_keys(e):
-            keys_pressed.add(normalize_key(e.name))
-
-        keyboard.unhook_all()
-        keyboard.hook(record_keys)
-        keyboard.hook(on_key_event)
+        record_hooks.append(keyboard.hook(record_keys))
+        record_hooks.append(keyboard.hook(on_key_event))
 
     hotkey_window = Toplevel(root)
     hotkey_window.title("Hotkey Manager")
@@ -130,22 +129,22 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, hotkey_actions, Upda
                     return
                 keyboard.add_hotkey(combo_str, lambda k=combo_str: hotkey_actions["start"](k))
                 hotkey_bindings["start"][combo_str] = path
-                hotkey_listbox.insert(END, f"[START] {combo_str} → {os.path.basename(path)}")
+                hotkey_listbox.insert(END, f"[START] → {combo_str.replace('+', ' + ')}")
 
             elif action == "Stop Auto-Change":
                 keyboard.add_hotkey(combo_str, hotkey_actions["stop"])
                 hotkey_bindings["stop"] = [combo_str]  # Enforce single stop key
-                hotkey_listbox.insert(END, f"[STOP] {combo_str}")
+                hotkey_listbox.insert(END, f"[STOP] → {combo_str.replace('+', ' + ')}")
 
             elif action == "Change Wallpaper":
                 keyboard.add_hotkey(combo_str, hotkey_actions["change"])
                 hotkey_bindings["change"] = [combo_str]
-                hotkey_listbox.insert(END, f"[CHANGE] {combo_str}")
+                hotkey_listbox.insert(END, f"[CHANGE] → {combo_str.replace('+', ' + ')}")
 
             elif action == "Show UI":
                 keyboard.add_hotkey(combo_str, hotkey_actions["show"])
                 hotkey_bindings["show"] = [combo_str]
-                hotkey_listbox.insert(END, f"[SHOW] {combo_str}")
+                hotkey_listbox.insert(END, f"[SHOW] → {combo_str.replace('+', ' + ')}")
 
             save_hotkey_bindings()
             Update_label['text'] = f"{action} bound to {combo_str}"
@@ -171,21 +170,17 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, hotkey_actions, Upda
         removed = False
 
         # Handle [STOP], [SHOW], [CHANGE], [START]
-        if label.upper() == "STOP":
-            if combo_str in hotkey_bindings["stop"]:
-                hotkey_bindings["stop"].remove(combo_str)
-                removed = True
+        label_map = {
+            "STOP": "stop",
+            "SHOW": "show",
+            "CHANGE": "change",
+        }
+        action_key = label_map.get(label.upper())
 
-        elif label.upper() == "CHANGE":
-            if combo_str in hotkey_bindings["change"]:
-                hotkey_bindings["change"].remove(combo_str)
+        if action_key:
+            if combo_str in hotkey_bindings[action_key]:
+                hotkey_bindings[action_key].remove(combo_str)
                 removed = True
-
-        elif label.upper() == "SHOW":
-            if combo_str in hotkey_bindings["show"]:
-                hotkey_bindings["show"].remove(combo_str)
-                removed = True
-
         else:  # It's a START hotkey (label is folder name)
             for key, path in list(hotkey_bindings["start"].items()):
                 if key == combo_str and os.path.basename(path.rstrip("/\\")) == label:
