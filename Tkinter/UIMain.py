@@ -240,10 +240,8 @@ main_frame.pack(fill=BOTH, expand=True)
 
 left_frame = Frame(main_frame)
 left_frame.pack(side=LEFT, fill=Y, padx=10, pady=10)
-
 Path_listbox = Listbox(left_frame, height=20, width=50)
 Path_listbox.pack(side=LEFT, fill=Y)
-
 scrollbar = Scrollbar(left_frame, orient=VERTICAL)
 scrollbar.config(command=Path_listbox.yview)
 scrollbar.pack(side=RIGHT, fill=Y)
@@ -252,11 +250,23 @@ Path_listbox.config(yscrollcommand=scrollbar.set)
 right_frame = Frame(main_frame)
 right_frame.pack(side=RIGHT, fill=BOTH, expand=True, padx=10, pady=10)
 
-Path_entry = ttk.Entry(right_frame, width=40)
-Browse_button = ttk.Button(right_frame, text="Browse", command=lambda: browse_folder(data))
-New_path_button = ttk.Button(right_frame, text="Add Path", command=lambda: add_path(get_path(), data))
-Change_button = ttk.Button(right_frame, text="Change Wallpaper", command=lambda: change_wallpaper())
-Remove_button = ttk.Button(right_frame, text="Remove Path", command=remove_path)
+path_frame = Frame(right_frame)
+path_frame.pack(pady=5)
+Path_entry = ttk.Entry(path_frame, width=30)
+Path_entry.pack(side=LEFT, padx=(0, 5))
+Browse_button = ttk.Button(path_frame, text="Browse", command=lambda: browse_folder(data))
+Browse_button.pack(side=RIGHT)
+
+path_button_frame = Frame(right_frame)
+path_button_frame.pack(pady=5)
+Add_path_button = ttk.Button(path_button_frame, text="Add Path", command=lambda: add_path(get_path(), data))
+Add_path_button.pack(side=LEFT, padx=(0, 5))
+Remove_button = ttk.Button(path_button_frame, text="Remove Path", command=remove_path)
+Remove_button.pack(side=LEFT)
+
+Change_button = ttk.Button(right_frame, text="Change Wallpaper", command=change_wallpaper)
+Change_button.pack(pady=5)
+
 Close_button = ttk.Button(right_frame, text="Exit", command=exit)
 Hotkey_manager_button = ttk.Button(
     right_frame,
@@ -285,19 +295,15 @@ sec_label.pack(side=LEFT)
 sec_entry = ttk.Entry(time_frame, width=5)
 sec_entry.insert(0, "60")
 sec_entry.pack(side=LEFT, padx=5)
-Start_interval_button = ttk.Button(right_frame, text="Start Auto-Change", command=start_interval_change)
-Stop_interval_button = ttk.Button(right_frame, text="Stop Auto-Change", command=stop_interval_change)
 
-
-
-Path_entry.pack(pady=10)
-Browse_button.pack(pady=5)
-New_path_button.pack(pady=10)
-Remove_button.pack(pady=10)
-Change_button.pack(pady=10)
+interval_frame = Frame(right_frame)
+interval_frame.pack(pady=5)
+Start_interval_button = ttk.Button(interval_frame, text="Start Auto-Change", command=start_interval_change)
+Start_interval_button.pack(side=LEFT, padx=(0, 5))
+Stop_interval_button = ttk.Button(interval_frame, text="Stop Auto-Change", command=stop_interval_change)
+Stop_interval_button.pack(side=LEFT)
 time_frame.pack(pady=10)
-Start_interval_button.pack(pady=5)
-Stop_interval_button.pack(pady=5)
+
 Hotkey_manager_button.pack(pady=5)
 Close_button.pack(pady=5)
 Update_label.pack(pady=10)

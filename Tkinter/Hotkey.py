@@ -4,16 +4,17 @@ from tkinter import ttk
 import keyboard
 
 def open_hotkey_window(root, Path_listbox, hotkey_bindings, switch_path_by_hotkey, stop_auto_change_hotkey, Update_label, save_hotkey_bindings):
+    paths = [Path_listbox.get(i) for i in range(Path_listbox.size())]
+
     hotkey_window = Toplevel(root)
     hotkey_window.title("Hotkey Manager")
     hotkey_window.geometry("400x400")
 
-    Label(hotkey_window, text="Selected Path:").pack(pady=5)
+    Label(hotkey_window, text="Select Path:").pack(pady=5)
 
-    selected = Path_listbox.curselection()
-    selected_path = Path_listbox.get(selected[0]) if selected else ""
-    path_label = Label(hotkey_window, text=selected_path or "No path selected")
-    path_label.pack()
+    path_combo = ttk.Combobox(hotkey_window, values=paths, state="readonly", width=40)
+    path_combo.pack()
+    path_combo.set(paths[0] if paths else "")
 
     Label(hotkey_window, text="Enter hotkey combo (e.g., ctrl+shift+1):").pack(pady=10)
     hotkey_entry = ttk.Entry(hotkey_window)
@@ -35,11 +36,10 @@ def open_hotkey_window(root, Path_listbox, hotkey_bindings, switch_path_by_hotke
         if not combo_str:
             Update_label['text'] = "Enter a hotkey combo"
             return
-        if not selected:
-            Update_label['text'] = "Select a path first"
+        path = path_combo.get()
+        if not path:
+            Update_label['text'] = "No path selected"
             return
-
-        path = Path_listbox.get(selected[0])
         hotkey_bindings["start"][combo_str] = path
 
         try:
