@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(mkdir -p internal)",
-      "Bash(mv Main.py Tkinter tests internal/)"
-    ]
-  }
-}
