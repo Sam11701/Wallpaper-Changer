@@ -62,3 +62,4 @@ hotkeys.json
 .coverage
 htmlcov/
 .tox/
+docs/superpowers/
