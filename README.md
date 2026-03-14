@@ -12,9 +12,14 @@ pip install -r requirements.txt
 
 ## Usage
 
-Run the application:
+**Option 1: Run the executable (recommended)**
 ```bash
-python Tkinter/UIMain.py
+./WallpaperChanger.exe
+```
+
+**Option 2: Run from source**
+```bash
+python -m src.gui.main_window
 ```
 
 ## Features
@@ -24,3 +29,16 @@ python Tkinter/UIMain.py
 - Auto-change wallpapers at specified intervals
 - System tray integration
 - Persistent hotkey and path configurations
+
+## Project Structure
+
+```
+.
+├── WallpaperChanger.exe    # Standalone executable
+├── src/
+│   ├── core/               # Core wallpaper logic
+│   ├── gui/                # User interface components
+│   └── config/             # Configuration constants
+├── tests/                  # Test suite
+└── docs/                   # Documentation
+```
