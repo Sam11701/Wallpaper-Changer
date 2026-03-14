@@ -1,0 +1,1 @@
+# Core wallpaper functionality
