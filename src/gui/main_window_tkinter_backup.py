@@ -1,3 +1,7 @@
+"""
+BACKUP: Original tkinter UI (deprecated, kept for reference during migration).
+New Flet UI is in main_window.py
+"""
 import os
 import pathlib
 import pystray
