@@ -7,7 +7,7 @@ def create_status_card(icon: str, title: str, value: str) -> ft.Card:
     Create a status display card.
 
     Args:
-        icon: Icon name from ft.icons (e.g., ft.icons.FOLDER)
+        icon: Icon name from ft.icons (e.g., ft.Icons.FOLDER)
         title: Card title (e.g., "Current Source")
         value: Display value (e.g., "Documents/Wallpapers")
 
@@ -18,7 +18,7 @@ def create_status_card(icon: str, title: str, value: str) -> ft.Card:
         content=ft.Container(
             content=ft.Column(
                 [
-                    ft.Icon(name=icon, size=32, color=ft.colors.PRIMARY),
+                    ft.Icon(icon, size=32, color=ft.Colors.PRIMARY),
                     ft.Text(
                         title,
                         size=12,
@@ -37,7 +37,6 @@ def create_status_card(icon: str, title: str, value: str) -> ft.Card:
                 spacing=8,
             ),
             padding=24,
-            alignment=ft.alignment.center,
         ),
         elevation=2,
     )

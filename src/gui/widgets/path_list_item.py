@@ -17,11 +17,11 @@ def create_path_list_item(
         ft.ListTile with path and delete button
     """
     return ft.ListTile(
-        leading=ft.Icon(ft.icons.FOLDER, color=ft.colors.PRIMARY),
+        leading=ft.Icon(ft.Icons.FOLDER_OUTLINED, color=ft.Colors.PRIMARY),
         title=ft.Text(path, size=14),
         trailing=ft.IconButton(
-            icon=ft.icons.DELETE_OUTLINE,
-            icon_color=ft.colors.ERROR,
+            icon=ft.Icons.DELETE_OUTLINE,
+            icon_color=ft.Colors.ERROR,
             tooltip="Remove folder",
             on_click=lambda e: on_delete(path),
         ),

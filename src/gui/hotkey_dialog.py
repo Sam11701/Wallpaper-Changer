@@ -54,8 +54,8 @@ def show_hotkey_dialog(
     )
 
     record_button = ft.ElevatedButton(
-        text="Record Hotkey",
-        icon=ft.icons.KEYBOARD,
+        content=ft.Text("Record Hotkey"),
+        icon=ft.Icons.KEYBOARD_OUTLINED,
     )
 
     hotkeys_list = ft.ListView(
@@ -67,7 +67,7 @@ def show_hotkey_dialog(
     def update_path_visibility(e):
         """Show/hide path dropdown based on action."""
         path_dropdown.visible = action_dropdown.value == "start"
-        dialog.update()
+        page.update()
 
     action_dropdown.on_change = update_path_visibility
 
@@ -82,8 +82,8 @@ def show_hotkey_dialog(
                 ft.ListTile(
                     title=ft.Text(f"[START: {folder_name}] → {combo}"),
                     trailing=ft.IconButton(
-                        icon=ft.icons.DELETE,
-                        icon_color=ft.colors.ERROR,
+                        icon=ft.Icons.DELETE,
+                        icon_color=ft.Colors.ERROR,
                         on_click=lambda e, c=combo: remove_hotkey("start", c),
                     ),
                 )
@@ -97,14 +97,14 @@ def show_hotkey_dialog(
                     ft.ListTile(
                         title=ft.Text(f"[{label}] → {combo}"),
                         trailing=ft.IconButton(
-                            icon=ft.icons.DELETE,
-                            icon_color=ft.colors.ERROR,
+                            icon=ft.Icons.DELETE,
+                            icon_color=ft.Colors.ERROR,
                             on_click=lambda e, t=action_type, c=combo: remove_hotkey(t, c),
                         ),
                     )
                 )
 
-        dialog.update()
+        page.update()
 
     def remove_hotkey(action_type: str, combo: str):
         """Remove a hotkey binding."""
@@ -123,12 +123,12 @@ def show_hotkey_dialog(
         on_save(hotkey_bindings)
         refresh_hotkeys_list()
 
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text(f"Removed hotkey: {combo}"),
-            bgcolor=ft.colors.BLUE,
+        page.show_dialog(
+            ft.SnackBar(
+                ft.Text(f"Removed hotkey: {combo}"),
+                bgcolor=ft.Colors.BLUE,
+            )
         )
-        page.snack_bar.open = True
-        page.update()
 
     def start_recording(e):
         """Start recording hotkey."""
@@ -137,7 +137,7 @@ def show_hotkey_dialog(
         recorded_combo = ""
         hotkey_field.value = "Press keys..."
         record_button.disabled = True
-        dialog.update()
+        page.update()
 
         keys_pressed = set()
 
@@ -164,7 +164,7 @@ def show_hotkey_dialog(
                     record_button.disabled = False
 
                     keyboard.unhook_all()
-                    dialog.update()
+                    page.update()
 
         keyboard.hook(on_key_event)
 
@@ -173,12 +173,12 @@ def show_hotkey_dialog(
     def save_hotkey(e):
         """Save the recorded hotkey."""
         if not recorded_combo:
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text("Please record a hotkey first"),
-                bgcolor=ft.colors.ERROR,
+            page.show_dialog(
+                ft.SnackBar(
+                    ft.Text("Please record a hotkey first"),
+                    bgcolor=ft.Colors.ERROR,
+                )
             )
-            page.snack_bar.open = True
-            page.update()
             return
 
         action_type = action_dropdown.value
@@ -201,12 +201,12 @@ def show_hotkey_dialog(
         try:
             if action_type == "start":
                 if not path_dropdown.value:
-                    page.snack_bar = ft.SnackBar(
-                        content=ft.Text("Please select a path"),
-                        bgcolor=ft.colors.ERROR,
+                    page.show_dialog(
+                        ft.SnackBar(
+                            ft.Text("Please select a path"),
+                            bgcolor=ft.Colors.ERROR,
+                        )
                     )
-                    page.snack_bar.open = True
-                    page.update()
                     return
 
                 keyboard.add_hotkey(
@@ -226,22 +226,21 @@ def show_hotkey_dialog(
 
             # Clear inputs
             hotkey_field.value = ""
-            dialog.update()
 
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text(f"Hotkey bound: {recorded_combo}"),
-                bgcolor=ft.colors.GREEN,
+            page.show_dialog(
+                ft.SnackBar(
+                    ft.Text(f"Hotkey bound: {recorded_combo}"),
+                    bgcolor=ft.Colors.GREEN,
+                )
             )
-            page.snack_bar.open = True
-            page.update()
 
         except Exception as ex:
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text(f"Failed to bind hotkey: {str(ex)}"),
-                bgcolor=ft.colors.ERROR,
+            page.show_dialog(
+                ft.SnackBar(
+                    ft.Text(f"Failed to bind hotkey: {str(ex)}"),
+                    bgcolor=ft.Colors.ERROR,
+                )
             )
-            page.snack_bar.open = True
-            page.update()
 
     # Dialog
     dialog = ft.AlertDialog(
@@ -254,8 +253,8 @@ def show_hotkey_dialog(
                     hotkey_field,
                     record_button,
                     ft.ElevatedButton(
-                        text="Save Hotkey",
-                        icon=ft.icons.SAVE,
+                        content=ft.Text("Save Hotkey"),
+                        icon=ft.Icons.SAVE,
                         on_click=save_hotkey,
                     ),
                     ft.Divider(),
@@ -268,7 +267,7 @@ def show_hotkey_dialog(
             padding=20,
         ),
         actions=[
-            ft.TextButton("Close", on_click=lambda e: close_dialog()),
+            ft.TextButton(content=ft.Text("Close"), on_click=lambda e: close_dialog()),
         ],
     )
 
@@ -277,7 +276,8 @@ def show_hotkey_dialog(
         page.update()
 
     # Show dialog
+    if dialog not in page.overlay:
+        page.overlay.append(dialog)
     refresh_hotkeys_list()
-    page.dialog = dialog
     dialog.open = True
     page.update()

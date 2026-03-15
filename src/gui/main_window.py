@@ -3,7 +3,9 @@ import os
 import json
 import threading
 import keyboard
+import pystray
 import flet as ft
+from PIL import Image as PILImage, ImageDraw
 from src.core import wallpaper
 from src.config import DATA_FILE, HOTKEY_FILE
 from src.gui.widgets.path_list_item import create_path_list_item
@@ -14,11 +16,14 @@ def main(page: ft.Page):
     """Main entry point for Flet app."""
     # State
     current_paths = []
+    selected_path = None  # Currently selected folder for wallpaper changes
     current_source = "No folder selected"
     timer_active = False
     timer_interval = 60  # Default 60 seconds
     active_timer = None
     hotkey_bindings = {"start": {}, "stop": [], "change": [], "show": []}
+    tray_icon = None
+    tray_icon_running = False
 
     # Window configuration
     page.title = "Wallpaper Changer"
@@ -66,7 +71,7 @@ def main(page: ft.Page):
             content=ft.Container(
                 content=ft.Column(
                     [
-                        ft.Icon(name=icon, size=32, color=ft.colors.PRIMARY),
+                        ft.Icon(icon, size=32, color=ft.Colors.PRIMARY),
                         ft.Text(
                             title,
                             size=12,
@@ -80,7 +85,6 @@ def main(page: ft.Page):
                     spacing=8,
                 ),
                 padding=24,
-                alignment=ft.alignment.center,
             ),
             elevation=2,
         )
@@ -89,7 +93,7 @@ def main(page: ft.Page):
         [
             ft.Container(
                 content=create_updateable_status_card(
-                    icon=ft.icons.FOLDER,
+                    icon=ft.Icons.FOLDER_OUTLINED,
                     title="Current Source",
                     value=current_source,
                     value_ref=source_card_value,
@@ -98,7 +102,7 @@ def main(page: ft.Page):
             ),
             ft.Container(
                 content=create_updateable_status_card(
-                    icon=ft.icons.TIMER,
+                    icon=ft.Icons.TIMER_OUTLINED,
                     title="Timer",
                     value="Stopped",
                     value_ref=timer_card_value,
@@ -107,7 +111,7 @@ def main(page: ft.Page):
             ),
             ft.Container(
                 content=create_updateable_status_card(
-                    icon=ft.icons.KEYBOARD,
+                    icon=ft.Icons.KEYBOARD_OUTLINED,
                     title="Hotkeys",
                     value="0 shortcuts active",
                     value_ref=hotkeys_card_value,
@@ -124,13 +128,13 @@ def main(page: ft.Page):
         nonlocal timer_button
 
         if is_active:
-            timer_button.text = "Stop Timer"
-            timer_button.icon = ft.icons.STOP
+            timer_button.content = ft.Text("Stop Timer")
+            timer_button.icon = ft.Icons.STOP
             timer_button.style.bgcolor = {"": "#FF6B6B"}  # Coral
             timer_card_value.current.value = countdown
         else:
-            timer_button.text = "Start Timer"
-            timer_button.icon = ft.icons.PLAY_ARROW
+            timer_button.content = ft.Text("Start Timer")
+            timer_button.icon = ft.Icons.PLAY_ARROW
             timer_button.style.bgcolor = {"": "#718096"}  # Gray
             timer_card_value.current.value = "Stopped"
 
@@ -140,9 +144,8 @@ def main(page: ft.Page):
         """Timer loop that runs in background."""
         nonlocal current_source
 
-        if timer_active and current_paths:
-            # Pick and change wallpaper
-            selected_path = current_paths[0]
+        if timer_active and selected_path:
+            # Pick and change wallpaper from selected folder
             try:
                 if wallpaper.pick_and_change(selected_path):
                     current_source = os.path.basename(selected_path)
@@ -160,13 +163,13 @@ def main(page: ft.Page):
         """Handle timer start/stop."""
         nonlocal timer_active, active_timer, timer_interval
 
-        if not current_paths:
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text("No folders configured. Add a folder first."),
-                bgcolor=ft.colors.ERROR,
+        if not selected_path:
+            page.show_dialog(
+                ft.SnackBar(
+                    ft.Text("No folder selected. Click a folder to select it."),
+                    bgcolor=ft.Colors.ERROR,
+                )
             )
-            page.snack_bar.open = True
-            page.update()
             return
 
         timer_active = not timer_active
@@ -180,34 +183,37 @@ def main(page: ft.Page):
 
                 if timer_interval < 1:
                     timer_interval = 60
-                    page.snack_bar = ft.SnackBar(
-                        content=ft.Text("Invalid interval, using default (60s)"),
-                        bgcolor=ft.colors.ORANGE,
+                    page.show_dialog(
+                        ft.SnackBar(
+                            ft.Text("Invalid interval, using default (60s)"),
+                            bgcolor=ft.Colors.ORANGE,
+                        )
                     )
-                    page.snack_bar.open = True
                 elif timer_interval > (24 * 3600):
                     timer_interval = 60
-                    page.snack_bar = ft.SnackBar(
-                        content=ft.Text("Interval too long, using default (60s)"),
-                        bgcolor=ft.colors.ORANGE,
+                    page.show_dialog(
+                        ft.SnackBar(
+                            ft.Text("Interval too long, using default (60s)"),
+                            bgcolor=ft.Colors.ORANGE,
+                        )
                     )
-                    page.snack_bar.open = True
             except ValueError:
                 timer_interval = 60
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text("Invalid input, using default (60s)"),
-                    bgcolor=ft.colors.ORANGE,
+                page.show_dialog(
+                    ft.SnackBar(
+                        ft.Text("Invalid input, using default (60s)"),
+                        bgcolor=ft.Colors.ORANGE,
+                    )
                 )
-                page.snack_bar.open = True
 
             # Start timer
             update_timer_ui(is_active=True, countdown=f"{timer_interval}s")
-            if not page.snack_bar or not page.snack_bar.open:
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text(f"Auto-change started ({timer_interval}s interval)"),
-                    bgcolor=ft.colors.BLUE,
+            page.show_dialog(
+                ft.SnackBar(
+                    ft.Text(f"Auto-change started ({timer_interval}s interval)"),
+                    bgcolor=ft.Colors.BLUE,
                 )
-                page.snack_bar.open = True
+            )
 
             # Start timer loop
             active_timer = threading.Timer(timer_interval, timer_loop)
@@ -219,20 +225,24 @@ def main(page: ft.Page):
                 active_timer = None
 
             update_timer_ui(is_active=False)
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text("Auto-change stopped"),
-                bgcolor=ft.colors.BLUE,
+            page.show_dialog(
+                ft.SnackBar(
+                    ft.Text("Auto-change stopped"),
+                    bgcolor=ft.Colors.BLUE,
+                )
             )
-            page.snack_bar.open = True
 
         page.update()
 
     def load_paths():
         """Load paths from data.txt."""
-        nonlocal current_paths
+        nonlocal current_paths, selected_path
         if os.path.exists(DATA_FILE):
             with open(DATA_FILE, "r") as f:
                 current_paths = [line.strip() for line in f if line.strip()]
+            # Auto-select first path on startup
+            if current_paths and not selected_path:
+                selected_path = current_paths[0]
 
     def load_hotkey_bindings():
         """Load hotkey bindings from file."""
@@ -304,49 +314,104 @@ def main(page: ft.Page):
         "show": show_ui_hotkey,
     }
 
+    def create_tray_image():
+        """Create simple icon for system tray."""
+        image = PILImage.new('RGB', (64, 64), color='gray')
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((16, 16, 48, 48), fill='white')
+        return image
+
+    def on_tray_restore(icon, item):
+        """Restore window from tray."""
+        nonlocal tray_icon, tray_icon_running
+
+        icon.stop()
+        tray_icon = None
+        tray_icon_running = False
+
+        page.window_visible = True
+        page.update()
+
+    def on_tray_exit(icon, item):
+        """Exit app from tray."""
+        nonlocal tray_icon, tray_icon_running
+
+        icon.stop()
+        tray_icon = None
+        tray_icon_running = False
+
+        page.window_close()
+
+    def minimize_to_tray():
+        """Minimize window to system tray."""
+        nonlocal tray_icon, tray_icon_running
+
+        if tray_icon_running:
+            return
+
+        page.window_visible = False
+        page.update()
+
+        def run_tray():
+            nonlocal tray_icon_running
+            tray_icon_running = True
+            tray_icon.run()
+            tray_icon_running = False
+
+        image = create_tray_image()
+        menu = pystray.Menu(
+            pystray.MenuItem("Restore", on_tray_restore),
+            pystray.MenuItem("Exit", on_tray_exit),
+        )
+        tray_icon = pystray.Icon("WallpaperChanger", image, "Wallpaper Changer", menu)
+
+        threading.Thread(target=run_tray, daemon=True).start()
+
     def handle_change_wallpaper(e):
         """Handle manual wallpaper change."""
         nonlocal current_source
 
-        if not current_paths:
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text("No folders configured. Add a folder first."),
-                bgcolor=ft.colors.ERROR,
+        if not selected_path:
+            page.show_dialog(
+                ft.SnackBar(
+                    ft.Text("No folder selected. Click a folder to select it."),
+                    bgcolor=ft.Colors.ERROR,
+                )
             )
-            page.snack_bar.open = True
-            page.update()
             return
-
-        # Use first path for now (later: let user select)
-        selected_path = current_paths[0]
 
         # Disable button, show loading
         change_now_button.disabled = True
-        change_now_button.text = "Changing..."
+        change_now_button.content = ft.Text("Changing...")
         page.update()
 
         try:
             if wallpaper.pick_and_change(selected_path):
                 current_source = os.path.basename(selected_path)
                 source_card_value.current.value = current_source
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text("Wallpaper changed successfully"),
-                    bgcolor=ft.colors.GREEN,
+                page.show_dialog(
+                    ft.SnackBar(
+                        ft.Text("Wallpaper changed successfully"),
+                        bgcolor=ft.Colors.GREEN,
+                    )
                 )
             else:
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text("Failed to change wallpaper"),
-                    bgcolor=ft.colors.ERROR,
+                page.show_dialog(
+                    ft.SnackBar(
+                        ft.Text("Failed to change wallpaper"),
+                        bgcolor=ft.Colors.ERROR,
+                    )
                 )
         except ValueError as e:
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text(str(e)),
-                bgcolor=ft.colors.ERROR,
+            page.show_dialog(
+                ft.SnackBar(
+                    ft.Text(str(e)),
+                    bgcolor=ft.Colors.ERROR,
+                )
             )
         finally:
             change_now_button.disabled = False
-            change_now_button.text = "Change Wallpaper Now"
-            page.snack_bar.open = True
+            change_now_button.content = ft.Text("Change Wallpaper Now")
             page.update()
 
     # Load paths on startup
@@ -391,22 +456,22 @@ def main(page: ft.Page):
     hotkeys_card_value.current.value = f"{count} shortcuts active"
 
     change_now_button = ft.FilledButton(
-        text="Change Wallpaper Now",
-        icon=ft.icons.WALLPAPER,
+        content=ft.Text("Change Wallpaper Now"),
+        icon=ft.Icons.WALLPAPER,
         style=ft.ButtonStyle(
-            bgcolor=ft.colors.PRIMARY,
-            color=ft.colors.ON_PRIMARY,
+            bgcolor=ft.Colors.PRIMARY,
+            color=ft.Colors.ON_PRIMARY,
         ),
         height=50,
         on_click=handle_change_wallpaper,
     )
 
     timer_button = ft.FilledButton(
-        text="Start Timer",
-        icon=ft.icons.PLAY_ARROW,
+        content=ft.Text("Start Timer"),
+        icon=ft.Icons.PLAY_ARROW,
         style=ft.ButtonStyle(
             bgcolor={"": "#718096"},  # Gray when stopped
-            color=ft.colors.WHITE,
+            color=ft.Colors.WHITE,
         ),
         height=50,
         on_click=handle_timer_toggle,
@@ -430,6 +495,7 @@ def main(page: ft.Page):
     minutes_field = ft.TextField(
         label="Minutes",
         value="1",
+        hint_text="0",
         width=80,
         text_align=ft.TextAlign.CENTER,
         keyboard_type=ft.KeyboardType.NUMBER,
@@ -438,6 +504,7 @@ def main(page: ft.Page):
     seconds_field = ft.TextField(
         label="Seconds",
         value="0",
+        hint_text="0",
         width=80,
         text_align=ft.TextAlign.CENTER,
         keyboard_type=ft.KeyboardType.NUMBER,
@@ -449,39 +516,76 @@ def main(page: ft.Page):
                 ft.Text("Timer Interval", size=14, weight=ft.FontWeight.W_600),
                 ft.Row(
                     [
-                        minutes_field,
-                        ft.Text("minutes"),
-                        seconds_field,
-                        ft.Text("seconds"),
+                        ft.Container(content=minutes_field, expand=False),
+                        ft.Container(content=ft.Text("min"), width=40),
+                        ft.Container(content=seconds_field, expand=False),
+                        ft.Container(content=ft.Text("sec"), width=40),
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
-                    spacing=8,
+                    spacing=4,
                 ),
             ],
             spacing=8,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         ),
         padding=16,
-        border=ft.border.all(1, "#E2E8F0"),
+        border=ft.Border.all(1, "#E2E8F0"),
         border_radius=8,
     )
 
     # Paths Configuration
     paths_list = ft.Column(spacing=0)
 
+    def handle_select_path(path: str):
+        """Select a path as the active folder."""
+        nonlocal selected_path, current_source
+        selected_path = path
+        current_source = os.path.basename(path) or path
+        source_card_value.current.value = current_source
+        refresh_paths_list()  # Refresh to update selection indicators
+
     def refresh_paths_list():
         """Refresh the paths list display."""
         paths_list.controls.clear()
         for path in current_paths:
+            is_selected = (path == selected_path)
             paths_list.controls.append(
-                create_path_list_item(path=path, on_delete=handle_remove_path)
+                ft.ListTile(
+                    leading=ft.Icon(
+                        ft.Icons.RADIO_BUTTON_CHECKED if is_selected else ft.Icons.RADIO_BUTTON_UNCHECKED,
+                        color=ft.Colors.PRIMARY if is_selected else ft.Colors.ON_SURFACE_VARIANT
+                    ),
+                    title=ft.Text(path, size=14, weight=ft.FontWeight.W_600 if is_selected else ft.FontWeight.NORMAL),
+                    trailing=ft.IconButton(
+                        icon=ft.Icons.DELETE_OUTLINE,
+                        icon_color=ft.Colors.ERROR,
+                        tooltip="Remove folder",
+                        on_click=lambda e, p=path: handle_remove_path(p),
+                    ),
+                    selected=is_selected,
+                    on_click=lambda e, p=path: handle_select_path(p),
+                )
             )
         page.update()
 
     def handle_remove_path(path: str):
         """Remove a path from the list."""
-        nonlocal current_paths
+        nonlocal current_paths, selected_path, current_source
         if path in current_paths:
             current_paths.remove(path)
+
+            # If removed path was selected, update selection
+            if path == selected_path:
+                if current_paths:
+                    # Select first remaining folder
+                    selected_path = current_paths[0]
+                    current_source = os.path.basename(selected_path) or selected_path
+                    source_card_value.current.value = current_source
+                else:
+                    # No folders left
+                    selected_path = None
+                    current_source = "No folder selected"
+                    source_card_value.current.value = current_source
 
             # Save to file
             with open(DATA_FILE, "w") as f:
@@ -489,14 +593,14 @@ def main(page: ft.Page):
 
             refresh_paths_list()
 
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text("Folder removed"),
-                bgcolor=ft.colors.BLUE,
+            page.show_dialog(
+                ft.SnackBar(
+                    ft.Text("Folder removed"),
+                    bgcolor=ft.Colors.BLUE,
+                )
             )
-            page.snack_bar.open = True
-            page.update()
 
-    def on_folder_selected(e: ft.FilePickerResultEvent):
+    def on_folder_selected(e):
         """Handle folder selection from file picker."""
         nonlocal current_paths
         if e.path:
@@ -504,22 +608,22 @@ def main(page: ft.Page):
 
             # Validate directory
             if not os.path.isdir(selected_path):
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text("Invalid directory path"),
-                    bgcolor=ft.colors.ERROR,
+                page.show_dialog(
+                    ft.SnackBar(
+                        ft.Text("Invalid directory path"),
+                        bgcolor=ft.Colors.ERROR,
+                    )
                 )
-                page.snack_bar.open = True
-                page.update()
                 return
 
             # Check for duplicates
             if selected_path in current_paths:
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text("Folder already in list"),
-                    bgcolor=ft.colors.ORANGE,
+                page.show_dialog(
+                    ft.SnackBar(
+                        ft.Text("Folder already in list"),
+                        bgcolor=ft.Colors.ORANGE,
+                    )
                 )
-                page.snack_bar.open = True
-                page.update()
                 return
 
             # Add to list
@@ -531,46 +635,164 @@ def main(page: ft.Page):
 
             refresh_paths_list()
 
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text("Folder added"),
-                bgcolor=ft.colors.GREEN,
+            page.show_dialog(
+                ft.SnackBar(
+                    ft.Text("Folder added"),
+                    bgcolor=ft.Colors.GREEN,
+                )
             )
-            page.snack_bar.open = True
-            page.update()
 
-    def handle_add_path(e):
-        """Show file picker to add folder."""
-        folder_picker.get_directory_path()
+    # Create add folder dialog components
+    add_path_input = ft.TextField(
+        label="Folder Path",
+        hint_text="Enter full path to wallpaper folder",
+        expand=True,
+    )
 
-    # File picker
-    folder_picker = ft.FilePicker(on_result=on_folder_selected)
-    page.overlay.append(folder_picker)
+    def browse_folder(e):
+        """Open Windows folder picker dialog."""
+        try:
+            # Try using win32com for modern dialog
+            import win32com.client
+            shell = win32com.client.Dispatch("Shell.Application")
+            folder = shell.BrowseForFolder(0, "Select Wallpaper Folder", 0x0040)  # BIF_NEWDIALOGSTYLE
 
-    paths_section = ft.Container(
+            if folder:
+                folder_path = folder.Self.Path
+                add_path_input.value = folder_path
+                page.update()
+        except ImportError:
+            # Fallback to tkinter if win32com not available
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            folder_path = filedialog.askdirectory(title="Select Wallpaper Folder")
+            root.destroy()
+            if folder_path:
+                add_path_input.value = folder_path
+                page.update()
+        except Exception as ex:
+            print(f"Folder browser error: {ex}")
+
+    browse_button = ft.FilledButton(
+        content=ft.Text("Browse..."),
+        icon=ft.Icons.FOLDER_OPEN,
+        on_click=browse_folder,
+    )
+
+    def close_add_dialog(e):
+        """Close the add folder dialog."""
+        print("Closing dialog")
+        add_folder_dialog.open = False
+        add_path_input.value = ""
+        page.update()
+
+    def submit_add_path(e):
+        """Submit the new folder path."""
+        print(f"Submitting path: {add_path_input.value}")
+        if add_path_input.value and add_path_input.value.strip():
+            folder_path = add_path_input.value.strip()
+
+            # Validate directory
+            if not os.path.isdir(folder_path):
+                page.show_dialog(
+                    ft.SnackBar(
+                        ft.Text("Invalid directory path"),
+                        bgcolor=ft.Colors.ERROR,
+                    )
+                )
+                return
+
+            # Check for duplicates
+            if folder_path in current_paths:
+                page.show_dialog(
+                    ft.SnackBar(
+                        ft.Text("Folder already in list"),
+                        bgcolor=ft.Colors.ORANGE,
+                    )
+                )
+                return
+
+            # Add to list
+            current_paths.append(folder_path)
+
+            # Auto-select if no folder is selected
+            if not selected_path:
+                handle_select_path(folder_path)
+
+            # Save to file
+            with open(DATA_FILE, "w") as f:
+                f.writelines(line + '\n' for line in current_paths)
+
+            refresh_paths_list()
+
+            # Close dialog and show success
+            add_folder_dialog.open = False
+            add_path_input.value = ""
+
+            # Show success message
+            page.show_dialog(
+                ft.SnackBar(
+                    ft.Text("Folder added"),
+                    bgcolor=ft.Colors.GREEN,
+                )
+            )
+
+    add_folder_dialog = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Add Wallpaper Folder"),
         content=ft.Column(
             [
                 ft.Row(
                     [
-                        ft.Text(
-                            "Wallpaper Folders",
-                            size=14,
-                            weight=ft.FontWeight.W_600,
-                        ),
-                        ft.IconButton(
-                            icon=ft.icons.ADD_CIRCLE_OUTLINE,
-                            icon_color=ft.colors.PRIMARY,
-                            tooltip="Add folder",
-                            on_click=handle_add_path,
-                        ),
+                        add_path_input,
+                        browse_button,
                     ],
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    spacing=8,
+                ),
+            ],
+            tight=True,
+            width=500,
+        ),
+        actions=[
+            ft.TextButton(content=ft.Text("Cancel"), on_click=close_add_dialog),
+            ft.TextButton(content=ft.Text("Add"), on_click=submit_add_path),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+
+    def handle_add_path(e):
+        """Show dialog to add folder path."""
+        print("=== handle_add_path called ===")
+        if add_folder_dialog not in page.overlay:
+            page.overlay.append(add_folder_dialog)
+        add_folder_dialog.open = True
+        page.update()
+        print("Dialog opened")
+
+    paths_section = ft.Container(
+        content=ft.Column(
+            [
+                ft.Text(
+                    "Wallpaper Folders",
+                    size=14,
+                    weight=ft.FontWeight.W_600,
                 ),
                 paths_list,
+                ft.ListTile(
+                    leading=ft.Icon(ft.Icons.ADD_CIRCLE_OUTLINE, color=ft.Colors.PRIMARY),
+                    title=ft.Text("Add Folder"),
+                    subtitle=ft.Text("Add a new wallpaper folder"),
+                    trailing=ft.Icon(ft.Icons.CHEVRON_RIGHT),
+                    on_click=lambda e: handle_add_path(e),
+                ),
             ],
             spacing=8,
         ),
         padding=16,
-        border=ft.border.all(1, "#E2E8F0"),
+        border=ft.Border.all(1, "#E2E8F0"),
         border_radius=8,
     )
 
@@ -590,15 +812,22 @@ def main(page: ft.Page):
 
     hotkeys_section = ft.Container(
         content=ft.ListTile(
-            leading=ft.Icon(ft.icons.KEYBOARD, color=ft.colors.PRIMARY),
+            leading=ft.Icon(ft.Icons.KEYBOARD_OUTLINED, color=ft.Colors.PRIMARY),
             title=ft.Text("Manage Hotkeys", size=14, weight=ft.FontWeight.W_600),
             subtitle=ft.Text("Configure global keyboard shortcuts"),
-            trailing=ft.Icon(ft.icons.CHEVRON_RIGHT),
+            trailing=ft.Icon(ft.Icons.CHEVRON_RIGHT),
             on_click=open_hotkey_dialog,
         ),
-        border=ft.border.all(1, "#E2E8F0"),
+        border=ft.Border.all(1, "#E2E8F0"),
         border_radius=8,
     )
+
+    # Window close handler
+    def on_window_event(e):
+        if e.data == "close":
+            minimize_to_tray()
+
+    page.on_window_event = on_window_event
 
     # Main layout
     page.add(
