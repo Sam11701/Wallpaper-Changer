@@ -493,21 +493,25 @@ def main(page: ft.Page):
 
     # Timer Configuration
     minutes_field = ft.TextField(
-        label="Minutes",
+        label="Min",
         value="1",
-        hint_text="0",
-        width=80,
+        width=100,
         text_align=ft.TextAlign.CENTER,
         keyboard_type=ft.KeyboardType.NUMBER,
+        text_size=16,
+        border_width=1,
+        content_padding=ft.padding.all(12),
     )
 
     seconds_field = ft.TextField(
-        label="Seconds",
+        label="Sec",
         value="0",
-        hint_text="0",
-        width=80,
+        width=100,
         text_align=ft.TextAlign.CENTER,
         keyboard_type=ft.KeyboardType.NUMBER,
+        text_size=16,
+        border_width=1,
+        content_padding=ft.padding.all(12),
     )
 
     timer_config = ft.Container(
@@ -516,13 +520,11 @@ def main(page: ft.Page):
                 ft.Text("Timer Interval", size=14, weight=ft.FontWeight.W_600),
                 ft.Row(
                     [
-                        ft.Container(content=minutes_field, expand=False),
-                        ft.Container(content=ft.Text("min"), width=40),
-                        ft.Container(content=seconds_field, expand=False),
-                        ft.Container(content=ft.Text("sec"), width=40),
+                        minutes_field,
+                        seconds_field,
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
-                    spacing=4,
+                    spacing=16,
                 ),
             ],
             spacing=8,
