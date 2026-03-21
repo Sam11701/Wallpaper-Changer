@@ -28,6 +28,12 @@ def main(page: ft.Page):
     is_maximized = False  # Track maximize/restore state for titlebar icon
     selected_monitor_id = None    # None = primary monitor
     selected_monitor_label = "Primary Monitor"
+    we_enabled = False
+    we_exe_path = None
+    we_paused = False
+    we_muted = False
+    we_stopped = True
+    we_icons_hidden = False
 
     # Window configuration
     page.title = "Wallpaper Changer"
