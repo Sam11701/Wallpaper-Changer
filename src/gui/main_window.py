@@ -7,7 +7,8 @@ import pystray
 import flet as ft
 from PIL import Image as PILImage, ImageDraw
 from src.core import wallpaper
-from src.config import DATA_FILE, HOTKEY_FILE
+from src.config import DATA_FILE, HOTKEY_FILE, WE_CONFIG_FILE
+from src.core import wallpaper_engine as we
 from src.gui.widgets.path_list_item import create_path_list_item
 from src.gui.hotkey_dialog import show_hotkey_dialog
 
@@ -25,6 +26,12 @@ def main(page: ft.Page):
     tray_icon = None
     tray_icon_running = False
     is_maximized = False  # Track maximize/restore state for titlebar icon
+    we_enabled = False
+    we_exe_path = None
+    we_muted = False
+    we_paused = False
+    we_stopped = True  # Default to stopped — user clicks Play to start WE
+    we_icons_hidden = False
 
     # Window configuration
     page.title = "Wallpaper Changer"
@@ -277,6 +284,28 @@ def main(page: ft.Page):
             page.update()
         except IOError as e:
             print(f"Error saving hotkeys: {e}")
+
+    def load_we_config():
+        """Load Wallpaper Engine config from file."""
+        nonlocal we_enabled, we_exe_path
+        if os.path.exists(WE_CONFIG_FILE):
+            try:
+                with open(WE_CONFIG_FILE, "r") as f:
+                    data = json.load(f)
+                    we_enabled = data.get("enabled", False)
+                    we_exe_path = data.get("exe_path", None)
+            except (json.JSONDecodeError, IOError):
+                pass
+        if not we_exe_path:
+            we_exe_path = we.find_executable()
+
+    def save_we_config():
+        """Save Wallpaper Engine config to file."""
+        try:
+            with open(WE_CONFIG_FILE, "w") as f:
+                json.dump({"enabled": we_enabled, "exe_path": we_exe_path}, f, indent=4)
+        except IOError as e:
+            print(f"Error saving WE config: {e}")
 
     def switch_path_by_hotkey(key_combo: str):
         """Handle start hotkey press."""
@@ -820,6 +849,192 @@ def main(page: ft.Page):
         border_radius=8,
     )
 
+    # Wallpaper Engine section
+    we_controls_row = ft.Ref[ft.Row]()
+    we_path_text = ft.Ref[ft.Text]()
+    we_toggle = ft.Ref[ft.Switch]()
+    we_pause_btn = ft.Ref[ft.IconButton]()
+    we_mute_btn = ft.Ref[ft.IconButton]()
+    we_stop_btn = ft.Ref[ft.IconButton]()
+    we_icons_btn = ft.Ref[ft.IconButton]()
+
+    def we_get_exe():
+        if we_exe_path:
+            return we_exe_path
+        return we.find_executable()
+
+    def handle_we_toggle(e):
+        nonlocal we_enabled, we_exe_path
+        we_enabled = e.control.value
+        if we_enabled and not we_exe_path:
+            we_exe_path = we.find_executable()
+        we_controls_row.current.visible = we_enabled
+        path_label = we_exe_path if we_exe_path else "Not found — browse to set path"
+        we_path_text.current.value = path_label
+        save_we_config()
+        page.update()
+
+    def handle_we_browse(e):
+        nonlocal we_exe_path
+        def on_result(ev):
+            nonlocal we_exe_path
+            if ev.files:
+                we_exe_path = ev.files[0].path
+                we_path_text.current.value = we_exe_path
+                save_we_config()
+                page.update()
+        picker = ft.FilePicker(on_result=on_result)
+        page.overlay.append(picker)
+        page.update()
+        picker.pick_files(allowed_extensions=["exe"], allow_multiple=False)
+
+    def handle_we_play_pause(e):
+        nonlocal we_paused
+        exe = we_get_exe()
+        if not exe:
+            return
+        if we_paused:
+            we.play(exe)
+            we_pause_btn.current.icon = ft.Icons.PAUSE
+            we_pause_btn.current.tooltip = "Pause"
+        else:
+            we.pause(exe)
+            we_pause_btn.current.icon = ft.Icons.PLAY_ARROW
+            we_pause_btn.current.tooltip = "Play"
+        we_paused = not we_paused
+        page.update()
+
+    def handle_we_mute(e):
+        nonlocal we_muted
+        exe = we_get_exe()
+        if not exe:
+            return
+        if we_muted:
+            we.unmute(exe)
+            we_mute_btn.current.icon = ft.Icons.VOLUME_UP
+            we_mute_btn.current.tooltip = "Mute"
+        else:
+            we.mute(exe)
+            we_mute_btn.current.icon = ft.Icons.VOLUME_OFF
+            we_mute_btn.current.tooltip = "Unmute"
+        we_muted = not we_muted
+        page.update()
+
+    def handle_we_stop(e):
+        nonlocal we_stopped
+        exe = we_get_exe()
+        if not exe:
+            return
+        if we_stopped:
+            we.play(exe)
+            we_stopped = False
+        else:
+            we.stop(exe)
+            we_stopped = True
+        we_update_stop_btn(not we_stopped)
+        page.update()
+
+    def handle_we_icons(e):
+        nonlocal we_icons_hidden
+        exe = we_get_exe()
+        if not exe:
+            return
+        if we_icons_hidden:
+            we.show_icons(exe)
+            we_icons_btn.current.icon = ft.Icons.DESKTOP_WINDOWS
+            we_icons_btn.current.tooltip = "Hide desktop icons"
+        else:
+            we.hide_icons(exe)
+            we_icons_btn.current.icon = ft.Icons.DESKTOP_ACCESS_DISABLED
+            we_icons_btn.current.tooltip = "Show desktop icons"
+        we_icons_hidden = not we_icons_hidden
+        page.update()
+
+    def we_update_stop_btn(running: bool):
+        """Update the stop/start button icon based on WE process state."""
+        if not we_stop_btn.current:
+            return
+        if running:
+            we_stop_btn.current.icon = ft.Icons.STOP
+            we_stop_btn.current.tooltip = "Stop Wallpaper Engine"
+        else:
+            we_stop_btn.current.icon = ft.Icons.PLAY_ARROW
+            we_stop_btn.current.tooltip = "Start Wallpaper Engine"
+
+    load_we_config()
+
+    we_section = ft.Container(
+        content=ft.Column(
+            [
+                ft.Row(
+                    [
+                        ft.Icon(ft.Icons.WALLPAPER, color=ft.Colors.PRIMARY),
+                        ft.Text("Wallpaper Engine", size=14, weight=ft.FontWeight.W_600, expand=True),
+                        ft.Switch(
+                            ref=we_toggle,
+                            value=we_enabled,
+                            on_change=handle_we_toggle,
+                        ),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                ft.Row(
+                    ref=we_controls_row,
+                    visible=we_enabled,
+                    controls=[
+                        ft.Text(
+                            ref=we_path_text,
+                            value=we_exe_path if we_exe_path else "Not found — browse to set path",
+                            size=11,
+                            color="#718096",
+                            expand=True,
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.FOLDER_OPEN,
+                            tooltip="Browse for wallpaper32/64.exe",
+                            on_click=handle_we_browse,
+                            icon_size=18,
+                        ),
+                        ft.VerticalDivider(width=1),
+                        ft.IconButton(
+                            ref=we_pause_btn,
+                            icon=ft.Icons.PAUSE,
+                            tooltip="Pause",
+                            on_click=handle_we_play_pause,
+                            icon_size=18,
+                        ),
+                        ft.IconButton(
+                            ref=we_mute_btn,
+                            icon=ft.Icons.VOLUME_UP,
+                            tooltip="Mute",
+                            on_click=handle_we_mute,
+                            icon_size=18,
+                        ),
+                        ft.IconButton(
+                            ref=we_stop_btn,
+                            icon=ft.Icons.PLAY_ARROW if we_stopped else ft.Icons.STOP,
+                            tooltip="Start Wallpaper Engine" if we_stopped else "Stop Wallpaper Engine",
+                            on_click=handle_we_stop,
+                            icon_size=18,
+                        ),
+                        ft.IconButton(
+                            ref=we_icons_btn,
+                            icon=ft.Icons.DESKTOP_WINDOWS,
+                            tooltip="Hide desktop icons",
+                            on_click=handle_we_icons,
+                            icon_size=18,
+                        ),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            ],
+            spacing=8,
+        ),
+        border=ft.Border.all(1, "#E2E8F0"),
+        border_radius=8,
+        padding=12,
+    )
+
     # Window close handler
     def on_window_event(e):
         if e.data == "close":
@@ -943,6 +1158,7 @@ def main(page: ft.Page):
                                     timer_config,
                                     paths_section,
                                     hotkeys_section,
+                                    we_section,
                                 ],
                                 spacing=24,
                             ),
