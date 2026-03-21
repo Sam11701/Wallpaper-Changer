@@ -1324,6 +1324,7 @@ def main(page: ft.Page):
                         timer_config,
                         paths_section,
                         hotkeys_section,
+                        we_section,
                     ],
                     spacing=24,
                 ),
