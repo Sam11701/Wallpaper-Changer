@@ -24,13 +24,17 @@ def main(page: ft.Page):
     hotkey_bindings = {"start": {}, "stop": [], "change": [], "show": []}
     tray_icon = None
     tray_icon_running = False
+    is_maximized = False  # Track maximize/restore state for titlebar icon
 
     # Window configuration
     page.title = "Wallpaper Changer"
-    page.window_width = 800
-    page.window_height = 600
-    page.window_min_width = 600
-    page.window_min_height = 500
+    page.window.frameless = True  # Remove default Windows frame
+    page.window.title_bar_hidden = True  # Extra safety
+    page.window.width = 800
+    page.window.height = 640  # +40px for custom titlebar
+    page.window.min_width = 600
+    page.window.min_height = 540  # +40px for custom titlebar
+    page.padding = 0  # Remove default padding for full-width titlebar
 
     # Theme configuration
     page.theme = ft.Theme(
@@ -44,14 +48,6 @@ def main(page: ft.Page):
         use_material3=True,
     )
     page.bgcolor = "#FAFAFA"  # Off-white background
-
-    # AppBar
-    page.appbar = ft.AppBar(
-        title=ft.Text("Wallpaper Changer", weight=ft.FontWeight.W_600),
-        center_title=False,
-        bgcolor="#8B5CF6",
-        color="#FFFFFF",
-    )
 
     # Status Cards Row (with refs for updates)
     source_card_value = ft.Ref[ft.Text]()
@@ -304,7 +300,7 @@ def main(page: ft.Page):
 
     def show_ui_hotkey():
         """Handle show UI hotkey press."""
-        page.window_to_front = True
+        page.window.to_front()
         page.update()
 
     hotkey_actions = {
@@ -329,7 +325,7 @@ def main(page: ft.Page):
         tray_icon = None
         tray_icon_running = False
 
-        page.window_visible = True
+        page.window.visible = True
         page.update()
 
     def on_tray_exit(icon, item):
@@ -340,7 +336,7 @@ def main(page: ft.Page):
         tray_icon = None
         tray_icon_running = False
 
-        page.window_close()
+        page.window.close()
 
     def minimize_to_tray():
         """Minimize window to system tray."""
@@ -349,7 +345,7 @@ def main(page: ft.Page):
         if tray_icon_running:
             return
 
-        page.window_visible = False
+        page.window.visible = False
         page.update()
 
         def run_tray():
@@ -831,24 +827,132 @@ def main(page: ft.Page):
 
     page.on_window_event = on_window_event
 
+    # Window control handlers
+    def handle_minimize(e):
+        """Minimize window to taskbar."""
+        page.window.minimized = True
+        page.update()
+
+    def handle_maximize(e):
+        """Toggle maximize/restore window state."""
+        nonlocal maximize_button
+        page.window.maximized = not page.window.maximized
+        if page.window.maximized:
+            maximize_button.icon = ft.Icons.FILTER_NONE
+        else:
+            maximize_button.icon = ft.Icons.CROP_SQUARE
+        page.update()
+
+    def handle_close(e):
+        """Close window (minimize to tray)."""
+        minimize_to_tray()
+
+    # Custom titlebar
+    maximize_button = ft.IconButton(
+        icon=ft.Icons.CROP_SQUARE,
+        icon_size=16,
+        icon_color="#2D3748",
+        tooltip="Maximize",
+        on_click=handle_maximize,
+        width=40,
+        height=40,
+        style=ft.ButtonStyle(
+            overlay_color={
+                ft.ControlState.HOVERED: "#E55A5A",
+            },
+        ),
+    )
+
+    custom_titlebar = ft.Row(
+        [
+            ft.WindowDragArea(
+                content=ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Text(
+                                "🎨",
+                                size=18,
+                                color="#2D3748",
+                            ),
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    bgcolor="#FF6B6B",
+                    height=40,
+                    padding=ft.padding.only(left=12),
+                ),
+                expand=True,
+                maximizable=True,
+            ),
+            ft.Container(
+                content=ft.Row(
+                    [
+                        ft.IconButton(
+                            icon=ft.Icons.MINIMIZE,
+                            icon_size=16,
+                            icon_color="#2D3748",
+                            tooltip="Minimize",
+                            on_click=handle_minimize,
+                            width=40,
+                            height=40,
+                            style=ft.ButtonStyle(
+                                overlay_color={
+                                    ft.ControlState.HOVERED: "#E55A5A",
+                                },
+                            ),
+                        ),
+                        maximize_button,
+                        ft.IconButton(
+                            icon=ft.Icons.CLOSE,
+                            icon_size=16,
+                            icon_color="#2D3748",
+                            tooltip="Close",
+                            on_click=handle_close,
+                            width=40,
+                            height=40,
+                            style=ft.ButtonStyle(
+                                overlay_color={
+                                    ft.ControlState.HOVERED: "#DC2626",
+                                },
+                            ),
+                        ),
+                    ],
+                    spacing=4,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                bgcolor="#FF6B6B",
+                height=40,
+                padding=ft.padding.only(right=4),
+            ),
+        ],
+        spacing=0,
+    )
+
     # Main layout
     page.add(
-        ft.ListView(
-            controls=[
-                ft.Container(
-                    content=ft.Column(
-                        [
-                            status_cards,
-                            quick_actions,
-                            timer_config,
-                            paths_section,
-                            hotkeys_section,
-                        ],
-                        spacing=24,
-                    ),
-                    padding=24,
-                )
+        ft.Column(
+            [
+                custom_titlebar,
+                ft.ListView(
+                    controls=[
+                        ft.Container(
+                            content=ft.Column(
+                                [
+                                    status_cards,
+                                    quick_actions,
+                                    timer_config,
+                                    paths_section,
+                                    hotkeys_section,
+                                ],
+                                spacing=24,
+                            ),
+                            padding=24,
+                        )
+                    ],
+                    expand=True,
+                ),
             ],
+            spacing=0,
             expand=True,
         )
     )
