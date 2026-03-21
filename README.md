@@ -24,11 +24,21 @@ python -m src.gui.main_window
 
 ## Features
 
+- Modern, colorful UI with Material Design
 - Change wallpapers from selected directories
 - Global hotkey support for quick actions
 - Auto-change wallpapers at specified intervals
 - System tray integration
 - Persistent hotkey and path configurations
+- Responsive, resizable layout
+
+## Tech Stack
+
+- **UI Framework**: Flet (Flutter-based Material Design)
+- **Backend**: Python 3.11+
+- **Wallpaper Engine**: Windows API (ctypes)
+- **Hotkeys**: keyboard library
+- **System Tray**: pystray
 
 ## Project Structure
 
