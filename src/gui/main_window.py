@@ -928,80 +928,69 @@ def main(page: ft.Page):
         spacing=0,
     )
 
-    def resize_handle(edge, width=None, height=None, expand=False, cursor=ft.MouseCursor.RESIZE_COLUMN):
-        def on_resize_start(e):
-            page.run_task(page.window.start_resizing, edge)
-        return ft.GestureDetector(
-            content=ft.Container(width=width, height=height, expand=expand),
-            on_tap_down=on_resize_start,
-            mouse_cursor=cursor,
-            expand=expand,
-        )
-
     E = 5  # edge handle thickness in px
 
-    main_content = ft.Column(
+    scrollable_content = ft.ListView(
+        controls=[
+            ft.Container(
+                content=ft.Column(
+                    [
+                        status_cards,
+                        quick_actions,
+                        timer_config,
+                        paths_section,
+                        hotkeys_section,
+                    ],
+                    spacing=24,
+                ),
+                padding=24,
+            )
+        ],
+        expand=True,
+    )
+
+
+    def positioned_handle(edge, cursor, left=None, top=None, right=None, bottom=None, width=None, height=None):
+        def on_resize_start(e):
+            page.run_task(page.window.start_resizing, edge)
+        h = ft.GestureDetector(
+            content=ft.Container(bgcolor="transparent"),
+            on_tap_down=on_resize_start,
+            mouse_cursor=cursor,
+        )
+        h.left = left
+        h.top = top
+        h.right = right
+        h.bottom = bottom
+        h.width = width
+        h.height = height
+        return h
+
+    main_column = ft.Column(
         [
             custom_titlebar,
-            ft.ListView(
-                controls=[
-                    ft.Container(
-                        content=ft.Column(
-                            [
-                                status_cards,
-                                quick_actions,
-                                timer_config,
-                                paths_section,
-                                hotkeys_section,
-                            ],
-                            spacing=24,
-                        ),
-                        padding=24,
-                    )
-                ],
-                expand=True,
-            ),
+            scrollable_content,
         ],
         spacing=0,
         expand=True,
     )
 
-    # Main layout with resize handles on all edges and corners
+    # Main layout: content fills full size, handles overlaid via Stack
     page.add(
-        ft.Column(
+        ft.Stack(
             [
-                # Top edge + corners
-                ft.Row(
-                    [
-                        resize_handle(ft.WindowResizeEdge.TOP_LEFT, width=E, height=E, cursor=ft.MouseCursor.RESIZE_UP_LEFT_DOWN_RIGHT),
-                        resize_handle(ft.WindowResizeEdge.TOP, height=E, expand=True, cursor=ft.MouseCursor.RESIZE_ROW),
-                        resize_handle(ft.WindowResizeEdge.TOP_RIGHT, width=E, height=E, cursor=ft.MouseCursor.RESIZE_UP_RIGHT_DOWN_LEFT),
-                    ],
-                    spacing=0,
-                    height=E,
-                ),
-                # Middle: left handle | content | right handle
-                ft.Row(
-                    [
-                        resize_handle(ft.WindowResizeEdge.LEFT, width=E, expand=False, cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT),
-                        main_content,
-                        resize_handle(ft.WindowResizeEdge.RIGHT, width=E, expand=False, cursor=ft.MouseCursor.RESIZE_LEFT_RIGHT),
-                    ],
-                    spacing=0,
-                    expand=True,
-                ),
-                # Bottom edge + corners
-                ft.Row(
-                    [
-                        resize_handle(ft.WindowResizeEdge.BOTTOM_LEFT, width=E, height=E, cursor=ft.MouseCursor.RESIZE_UP_RIGHT_DOWN_LEFT),
-                        resize_handle(ft.WindowResizeEdge.BOTTOM, height=E, expand=True, cursor=ft.MouseCursor.RESIZE_ROW),
-                        resize_handle(ft.WindowResizeEdge.BOTTOM_RIGHT, width=E, height=E, cursor=ft.MouseCursor.RESIZE_UP_LEFT_DOWN_RIGHT),
-                    ],
-                    spacing=0,
-                    height=E,
-                ),
+                main_column,
+                # Edges
+                positioned_handle(ft.WindowResizeEdge.LEFT,   ft.MouseCursor.RESIZE_LEFT_RIGHT,    left=0,    top=E,    bottom=E,  width=E),
+                positioned_handle(ft.WindowResizeEdge.RIGHT,  ft.MouseCursor.RESIZE_LEFT_RIGHT,    right=0,   top=E,    bottom=E,  width=E),
+                positioned_handle(ft.WindowResizeEdge.TOP,    ft.MouseCursor.RESIZE_ROW,           left=E,    top=0,    right=E,   height=E),
+                positioned_handle(ft.WindowResizeEdge.BOTTOM, ft.MouseCursor.RESIZE_ROW,           left=E,    bottom=0, right=E,   height=E),
+                # Corners
+                positioned_handle(ft.WindowResizeEdge.TOP_LEFT,     ft.MouseCursor.RESIZE_UP_LEFT_DOWN_RIGHT,  left=0,  top=0,    width=E, height=E),
+                positioned_handle(ft.WindowResizeEdge.TOP_RIGHT,    ft.MouseCursor.RESIZE_UP_RIGHT_DOWN_LEFT,  right=0, top=0,    width=E, height=E),
+                positioned_handle(ft.WindowResizeEdge.BOTTOM_LEFT,  ft.MouseCursor.RESIZE_UP_RIGHT_DOWN_LEFT,  left=0,  bottom=0, width=E, height=E),
+                positioned_handle(ft.WindowResizeEdge.BOTTOM_RIGHT, ft.MouseCursor.RESIZE_UP_LEFT_DOWN_RIGHT,  right=0, bottom=0, width=E, height=E),
             ],
-            spacing=0,
             expand=True,
         )
     )
