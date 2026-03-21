@@ -26,12 +26,8 @@ def main(page: ft.Page):
     tray_icon = None
     tray_icon_running = False
     is_maximized = False  # Track maximize/restore state for titlebar icon
-    we_enabled = False
-    we_exe_path = None
-    we_muted = False
-    we_paused = False
-    we_stopped = True  # Default to stopped — user clicks Play to start WE
-    we_icons_hidden = False
+    selected_monitor_id = None    # None = primary monitor
+    selected_monitor_label = "Primary Monitor"
 
     # Window configuration
     page.title = "Wallpaper Changer"
@@ -150,7 +146,7 @@ def main(page: ft.Page):
         if timer_active and selected_path:
             # Pick and change wallpaper from selected folder
             try:
-                if wallpaper.pick_and_change(selected_path):
+                if wallpaper.pick_and_change(selected_path, monitor_id=selected_monitor_id):
                     current_source = os.path.basename(selected_path)
                     source_card_value.current.value = current_source
                     page.update()
@@ -411,7 +407,7 @@ def main(page: ft.Page):
         page.update()
 
         try:
-            if wallpaper.pick_and_change(selected_path):
+            if wallpaper.pick_and_change(selected_path, monitor_id=selected_monitor_id):
                 current_source = os.path.basename(selected_path)
                 source_card_value.current.value = current_source
                 page.show_dialog(
@@ -438,6 +434,152 @@ def main(page: ft.Page):
             change_now_button.disabled = False
             change_now_button.content = ft.Text("Change Wallpaper Now")
             page.update()
+
+    # ── Monitor picker ────────────────────────────────────────────────────────
+
+    monitor_picker_dialog = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Select Monitor"),
+        actions=[
+            ft.TextButton(
+                content=ft.Text("Cancel"),
+                on_click=lambda e: _close_monitor_picker(),
+            )
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+
+    def _close_monitor_picker():
+        monitor_picker_dialog.open = False
+        page.update()
+
+    def _position_label(m, monitors):
+        if m['is_primary']:
+            return "Primary"
+        primary = next((p for p in monitors if p['is_primary']), None)
+        if primary is None:
+            return f"Monitor {m['index'] + 1}"
+        if m['left'] < primary['left']:
+            return "Left"
+        if m['left'] > primary['left']:
+            return "Right"
+        if m['top'] < primary['top']:
+            return "Above"
+        return "Below"
+
+    def show_monitor_picker(e):
+        nonlocal selected_monitor_id, selected_monitor_label
+
+        monitors = wallpaper.get_monitors()
+        if not monitors:
+            page.show_dialog(
+                ft.SnackBar(ft.Text("Could not detect monitors"), bgcolor=ft.Colors.ERROR)
+            )
+            return
+
+        # Scale monitors to a preview canvas
+        all_left   = min(m['left']   for m in monitors)
+        all_top    = min(m['top']    for m in monitors)
+        all_right  = max(m['right']  for m in monitors)
+        all_bottom = max(m['bottom'] for m in monitors)
+        total_w = all_right  - all_left
+        total_h = all_bottom - all_top
+
+        preview_w = 380
+        scale     = preview_w / total_w
+        preview_h = max(int(total_h * scale), 60)
+
+        def make_tile(m):
+            pos_label  = _position_label(m, monitors)
+            label      = f"Monitor {m['index'] + 1} ({pos_label})"
+            is_sel     = (
+                (selected_monitor_id is None and m['is_primary']) or
+                selected_monitor_id == m['id']
+            )
+
+            def on_select(e, mid=m['id'], lbl=label):
+                nonlocal selected_monitor_id, selected_monitor_label
+                selected_monitor_id    = mid
+                selected_monitor_label = lbl
+                monitor_btn_label.current.value = lbl
+                _close_monitor_picker()
+
+            tile = ft.GestureDetector(
+                content=ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Text(
+                                f"Monitor {m['index'] + 1}",
+                                size=11,
+                                weight=ft.FontWeight.BOLD,
+                                color="white",
+                                no_wrap=True,
+                            ),
+                            ft.Text(pos_label, size=10, color="#CBD5E0", no_wrap=True),
+                            ft.Text(
+                                f"{m['width']}×{m['height']}",
+                                size=9,
+                                color="#A0AEC0",
+                                no_wrap=True,
+                            ),
+                        ],
+                        spacing=2,
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    bgcolor="#8B5CF6" if is_sel else "#4A5568",
+                    border=ft.border.all(2, "#8B5CF6" if is_sel else "#718096"),
+                    border_radius=4,
+                    alignment=ft.Alignment(0, 0),
+                ),
+                on_tap=on_select,
+            )
+            tile.left   = (m['left']  - all_left) * scale
+            tile.top    = (m['top']   - all_top)  * scale
+            tile.width  = m['width']  * scale
+            tile.height = m['height'] * scale
+            return tile
+
+        def on_select_all(e):
+            nonlocal selected_monitor_id, selected_monitor_label
+            selected_monitor_id    = wallpaper.ALL_MONITORS
+            selected_monitor_label = "All Monitors"
+            monitor_btn_label.current.value = "All Monitors"
+            _close_monitor_picker()
+
+        monitor_picker_dialog.content = ft.Column(
+            [
+                ft.Text("Click a monitor to apply wallpaper to it", size=13, color="#718096"),
+                ft.Container(
+                    content=ft.Stack([make_tile(m) for m in monitors]),
+                    width=preview_w,
+                    height=preview_h,
+                    bgcolor="#2D3748",
+                    border_radius=8,
+                    padding=4,
+                    clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                ),
+                ft.Divider(height=1),
+                ft.TextButton(
+                    content=ft.Row(
+                        [ft.Icon(ft.Icons.MONITOR, size=16), ft.Text("All Monitors")],
+                        spacing=8,
+                        tight=True,
+                    ),
+                    on_click=on_select_all,
+                ),
+            ],
+            spacing=12,
+            tight=True,
+            width=420,
+        )
+
+        if monitor_picker_dialog not in page.overlay:
+            page.overlay.append(monitor_picker_dialog)
+        monitor_picker_dialog.open = True
+        page.update()
+
+    # ── End monitor picker ────────────────────────────────────────────────────
 
     # Load paths on startup
     load_paths()
@@ -500,6 +642,26 @@ def main(page: ft.Page):
         ),
         height=50,
         on_click=handle_timer_toggle,
+    )
+
+    monitor_btn_label = ft.Ref[ft.Text]()
+    monitor_btn = ft.TextButton(
+        content=ft.Row(
+            [ft.Icon(ft.Icons.MONITOR, size=16), ft.Text(selected_monitor_label, ref=monitor_btn_label)],
+            spacing=6,
+            tight=True,
+        ),
+        on_click=show_monitor_picker,
+        style=ft.ButtonStyle(color=ft.Colors.PRIMARY),
+    )
+
+    monitor_row = ft.Row(
+        [
+            ft.Text("Monitor:", size=13, color="#718096"),
+            monitor_btn,
+        ],
+        alignment=ft.MainAxisAlignment.CENTER,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
     )
 
     quick_actions = ft.ResponsiveRow(
@@ -1143,32 +1305,70 @@ def main(page: ft.Page):
         spacing=0,
     )
 
-    # Main layout
-    page.add(
-        ft.Column(
-            [
-                custom_titlebar,
-                ft.ListView(
-                    controls=[
-                        ft.Container(
-                            content=ft.Column(
-                                [
-                                    status_cards,
-                                    quick_actions,
-                                    timer_config,
-                                    paths_section,
-                                    hotkeys_section,
-                                    we_section,
-                                ],
-                                spacing=24,
-                            ),
-                            padding=24,
-                        )
+    E = 5  # edge handle thickness in px
+
+    scrollable_content = ft.ListView(
+        controls=[
+            ft.Container(
+                content=ft.Column(
+                    [
+                        status_cards,
+                        quick_actions,
+                        monitor_row,
+                        timer_config,
+                        paths_section,
+                        hotkeys_section,
                     ],
-                    expand=True,
+                    spacing=24,
                 ),
+                padding=24,
+            )
+        ],
+        expand=True,
+    )
+
+
+    def positioned_handle(edge, cursor, left=None, top=None, right=None, bottom=None, width=None, height=None):
+        def on_resize_start(e):
+            page.run_task(page.window.start_resizing, edge)
+        h = ft.GestureDetector(
+            content=ft.Container(bgcolor="transparent"),
+            on_tap_down=on_resize_start,
+            mouse_cursor=cursor,
+        )
+        h.left = left
+        h.top = top
+        h.right = right
+        h.bottom = bottom
+        h.width = width
+        h.height = height
+        return h
+
+    main_column = ft.Column(
+        [
+            custom_titlebar,
+            scrollable_content,
+        ],
+        spacing=0,
+        expand=True,
+    )
+
+    # Main layout: content fills full size, handles overlaid via Stack
+    page.add(
+        ft.Stack(
+            [
+                main_column,
+                # Edges
+                positioned_handle(ft.WindowResizeEdge.LEFT,   ft.MouseCursor.RESIZE_LEFT_RIGHT,    left=0,    top=E,    bottom=E,  width=E),
+                positioned_handle(ft.WindowResizeEdge.RIGHT,  ft.MouseCursor.RESIZE_LEFT_RIGHT,    right=0,   top=E,    bottom=E,  width=E),
+                positioned_handle(ft.WindowResizeEdge.TOP,    ft.MouseCursor.RESIZE_ROW,           left=E,    top=0,    right=E,   height=E),
+                positioned_handle(ft.WindowResizeEdge.BOTTOM, ft.MouseCursor.RESIZE_ROW,           left=E,    bottom=0, right=E,   height=E),
+                # Corners
+                positioned_handle(ft.WindowResizeEdge.TOP_LEFT,     ft.MouseCursor.RESIZE_UP_LEFT_DOWN_RIGHT,  left=0,  top=0,    width=E, height=E),
+                positioned_handle(ft.WindowResizeEdge.TOP_RIGHT,    ft.MouseCursor.RESIZE_UP_RIGHT_DOWN_LEFT,  right=0, top=0,    width=E, height=E),
+                positioned_handle(ft.WindowResizeEdge.BOTTOM_LEFT,  ft.MouseCursor.RESIZE_UP_RIGHT_DOWN_LEFT,  left=0,  bottom=0, width=E, height=E),
+                positioned_handle(ft.WindowResizeEdge.BOTTOM_RIGHT, ft.MouseCursor.RESIZE_UP_LEFT_DOWN_RIGHT,  right=0, bottom=0, width=E, height=E),
             ],
-            spacing=0,
             expand=True,
         )
     )
