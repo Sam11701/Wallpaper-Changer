@@ -1,5 +1,6 @@
 """Main window for Wallpaper Changer using Flet framework."""
 import os
+import io
 import json
 import threading
 import keyboard
@@ -34,6 +35,7 @@ def main(page: ft.Page):
     we_muted = False
     we_stopped = True
     we_icons_hidden = False
+    panel_folder = None  # folder currently shown in side image panel
 
     # Window configuration
     page.title = "Wallpaper Changer"
@@ -751,11 +753,24 @@ def main(page: ft.Page):
                         color=ft.Colors.PRIMARY if is_selected else ft.Colors.ON_SURFACE_VARIANT
                     ),
                     title=ft.Text(path, size=14, weight=ft.FontWeight.W_600 if is_selected else ft.FontWeight.NORMAL),
-                    trailing=ft.IconButton(
-                        icon=ft.Icons.DELETE_OUTLINE,
-                        icon_color=ft.Colors.ERROR,
-                        tooltip="Remove folder",
-                        on_click=lambda e, p=path: handle_remove_path(p),
+                    trailing=ft.Row(
+                        [
+                            ft.IconButton(
+                                icon=ft.Icons.CHEVRON_RIGHT,
+                                icon_size=18,
+                                icon_color=ft.Colors.PRIMARY,
+                                tooltip="Browse images",
+                                on_click=lambda e, p=path: open_image_panel(p),
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.DELETE_OUTLINE,
+                                icon_color=ft.Colors.ERROR,
+                                tooltip="Remove folder",
+                                on_click=lambda e, p=path: handle_remove_path(p),
+                            ),
+                        ],
+                        spacing=0,
+                        tight=True,
                     ),
                     selected=is_selected,
                     on_click=lambda e, p=path: handle_select_path(p),
@@ -1311,6 +1326,125 @@ def main(page: ft.Page):
         spacing=0,
     )
 
+    PANEL_W = 300
+    BASE_W  = 800
+
+    panel_title_text = ft.Text(
+        "",
+        size=13,
+        weight=ft.FontWeight.W_600,
+        color="#E2E8F0",
+        expand=True,
+        overflow=ft.TextOverflow.ELLIPSIS,
+        no_wrap=True,
+    )
+    panel_grid = ft.GridView(
+        runs_count=2,
+        max_extent=130,
+        child_aspect_ratio=1.0,
+        spacing=6,
+        run_spacing=6,
+        expand=True,
+        padding=ft.padding.all(10),
+    )
+    image_panel = ft.Container(
+        content=ft.Column(
+            [
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.PHOTO_LIBRARY_OUTLINED, size=15, color="#A0AEC0"),
+                            panel_title_text,
+                        ],
+                        spacing=8,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    padding=ft.padding.symmetric(horizontal=10, vertical=8),
+                    bgcolor="#1A202C",
+                    border=ft.border.only(bottom=ft.BorderSide(1, "#2D3748")),
+                ),
+                panel_grid,
+            ],
+            spacing=0,
+            expand=True,
+        ),
+        width=PANEL_W,
+        bgcolor="#171923",
+        border=ft.border.only(left=ft.BorderSide(2, "#4A5568")),
+        visible=False,
+    )
+
+    def open_image_panel(folder):
+        nonlocal panel_folder
+        # Toggle closed if same folder
+        if panel_folder == folder and image_panel.visible:
+            close_image_panel()
+            return
+
+        panel_folder = folder
+        panel_title_text.value = os.path.basename(folder)
+        panel_grid.controls.clear()
+        image_panel.visible = True
+        page.window.width = BASE_W + PANEL_W
+        page.update()
+
+        # Load thumbnails one by one in background so panel opens instantly
+        def load_images(target_folder):
+            try:
+                images = sorted(
+                    f for f in os.listdir(target_folder)
+                    if wallpaper.is_valid_image_file(f)
+                )
+            except Exception:
+                return
+
+            for img_name in images:
+                # Stop if folder was changed or panel closed
+                if panel_folder != target_folder or not image_panel.visible:
+                    return
+
+                abs_path = os.path.abspath(os.path.join(target_folder, img_name))
+                try:
+                    thumb = PILImage.open(abs_path).convert("RGB")
+                    thumb.thumbnail((200, 200))
+                    buf = io.BytesIO()
+                    thumb.save(buf, format="JPEG", quality=75)
+                    img_bytes = buf.getvalue()
+                except Exception:
+                    continue
+
+                def on_tap(e, p=abs_path):
+                    wallpaper.change_wallpaper(p, monitor_id=selected_monitor_id)
+
+                panel_grid.controls.append(
+                    ft.GestureDetector(
+                        content=ft.Container(
+                            content=ft.Image(
+                                src=img_bytes,
+                                fit=ft.BoxFit.COVER,
+                                expand=True,
+                            ),
+                            border_radius=5,
+                            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                            tooltip=img_name,
+                        ),
+                        on_tap=on_tap,
+                        mouse_cursor=ft.MouseCursor.CLICK,
+                    )
+                )
+                async def _do_update():
+                    page.update()
+                page.run_task(_do_update)
+
+        threading.Thread(target=load_images, args=(folder,), daemon=True).start()
+
+    def close_image_panel():
+        nonlocal panel_folder
+        panel_folder = None
+        image_panel.visible = False
+        page.window.width = BASE_W
+        page.update()
+
     E = 5  # edge handle thickness in px
 
     scrollable_content = ft.ListView(
@@ -1354,7 +1488,11 @@ def main(page: ft.Page):
     main_column = ft.Column(
         [
             custom_titlebar,
-            scrollable_content,
+            ft.Row(
+                [scrollable_content, image_panel],
+                spacing=0,
+                expand=True,
+            ),
         ],
         spacing=0,
         expand=True,
